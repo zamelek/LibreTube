@@ -1,0 +1,1 @@
+Seek bar: SponsorBlock segments have the same thickness as the progress line and continue it in their category color; the scrubber keeps the color of the played part and is never covered by a segment.

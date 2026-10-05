@@ -63,8 +63,12 @@ the playback source and how the video was rendered.
    (15 s steps): landing inside a segment keeps playing, playing into it skips and starts the next video.
 10. **Seek bar segments.** `ui/views/MarkableTimeBar.kt` draws the SponsorBlock segments in the color of
    their category (the preference colors if "custom colors" is on, otherwise the defaults from
-   `sponsorblock_settings.xml`), 3 dp high, 67% opaque, *below* the progress line and the scrubber.
-   Before, they were drawn above the scrubber in a dull theme color.
+   `sponsorblock_settings.xml`, which are the SponsorBlock standard colors). They are drawn after the
+   normal bar, 2 dp high like `app:bar_height`, and only right of the scrubber (plus a clearance of 8 dp),
+   so the played part keeps the progress color, the scrubber keeps its own color and is never covered,
+   and a segment continues the line. The scrubbing position comes from an `OnScrubListener`.
+   Categories set to "Manual" in Settings → SponsorBlock are shown on the bar without being skipped
+   automatically; "Off" categories are not requested and therefore not shown.
 11. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
    next to the original app (different signature, so the fork can never update the original). The
    owner has since removed the original from the phone and uses only the fork.
@@ -82,6 +86,7 @@ https://github.com/zamelek/LibreTube/releases. Each version has a one line chang
 | 32.1.3  | 75 | Update check looks at this fork's releases instead of upstream |
 | 32.1.4  | 76 | Brightness swipe applies to the fullscreen dialog window, PiP window no longer keeps a stale brightness |
 | 32.1.5  | 77 | SponsorBlock segments are not auto-skipped after the user seeks into them, segments are shown in color on the seek bar |
+| 32.1.6  | 78 | Seek bar segments: same thickness as the progress line, never cover the scrubber |
 
 ## Files changed compared to upstream
 

@@ -9,6 +9,7 @@ import android.view.View
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.marginLeft
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.TimeBar
 import com.github.libretube.api.obj.Segment
 import com.github.libretube.extensions.dpToPx
 import com.github.libretube.helpers.PreferenceHelper
@@ -26,17 +27,40 @@ open class MarkableTimeBar(
     private var segments = listOf<Segment>()
     private var length: Int = 0
 
-    // slightly thicker than the progress line, so that the segments are visible without being loud
-    private val segmentHeight = 3f.dpToPx()
+    // has to be the same as the bar height of the time bar (`app:bar_height`)
+    private val segmentHeight = 2f.dpToPx()
+
+    // the scrubber is drawn on top of the bar and must stay visible, so segments keep a distance to it
+    private val scrubberClearance = 8f.dpToPx()
+
+    private var isScrubbing = false
+    private var scrubPositionMs = 0L
+
+    init {
+        addListener(object : TimeBar.OnScrubListener {
+            override fun onScrubStart(timeBar: TimeBar, position: Long) {
+                isScrubbing = true
+                scrubPositionMs = position
+            }
+
+            override fun onScrubMove(timeBar: TimeBar, position: Long) {
+                scrubPositionMs = position
+            }
+
+            override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
+                isScrubbing = false
+            }
+        })
+    }
 
     override fun onDraw(canvas: Canvas) {
-        // draw the segments below the progress line and the scrubber, so that they don't cover them
-        drawSegments(canvas)
         super.onDraw(canvas)
+        drawSegments(canvas)
     }
 
     private fun drawSegments(canvas: Canvas) {
-        if (exoPlayer == null) return
+        val player = exoPlayer ?: return
+        if (player.duration <= 0) return
 
         canvas.save()
         val horizontalOffset = (parent as View).marginLeft
@@ -46,10 +70,18 @@ open class MarkableTimeBar(
         val useCustomColors = PreferenceHelper.getBoolean("sb_enable_custom_colors", false)
         val paint = Paint()
 
+        // the already played part keeps the color of the progress line, segments continue it
+        val positionMs = if (isScrubbing) scrubPositionMs else player.currentPosition
+        val playedEnd = (positionMs.toFloat() / player.duration * length).toInt() + horizontalOffset
+
         segments.forEach {
             val (start, end) = it.segmentStartAndEnd
             // skip labels for the whole video and point in time markers (e.g. highlights)
             if (it.actionType == Segment.TYPE_FULL || end <= start) return@forEach
+
+            val left = maxOf(start.toLength() + horizontalOffset, playedEnd + scrubberClearance)
+            val right = end.toLength() + horizontalOffset
+            if (right <= left) return@forEach
 
             // every category has its own color, the user can change it if custom colors are enabled
             val defaultColor = DEFAULT_CATEGORY_COLORS[it.category] ?: themeColor
@@ -58,18 +90,9 @@ open class MarkableTimeBar(
             } else {
                 defaultColor
             }
-            // a bit transparent, so that the colors blend into the dark player design
             paint.color = ColorUtils.setAlphaComponent(color, SEGMENT_ALPHA)
 
-            canvas.drawRect(
-                Rect(
-                    start.toLength() + horizontalOffset,
-                    marginY,
-                    end.toLength() + horizontalOffset,
-                    marginY + segmentHeight
-                ),
-                paint
-            )
+            canvas.drawRect(Rect(left, marginY, right, marginY + segmentHeight), paint)
         }
         canvas.restore()
     }
@@ -87,7 +110,7 @@ open class MarkableTimeBar(
     }
 
     companion object {
-        private const val SEGMENT_ALPHA = 170
+        private const val SEGMENT_ALPHA = 200
 
         // keep in sync with the default values of the color preferences in sponsorblock_settings.xml
         private val DEFAULT_CATEGORY_COLORS = mapOf(
