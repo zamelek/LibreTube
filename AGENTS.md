@@ -1,117 +1,120 @@
-# LibreTube (форк: починка воспроизведения)
+# LibreTube (fork: playback fixes)
 
-Android-клиент YouTube на базе [LibreTube](https://github.com/libre-tube/LibreTube) (апстрим 32.1) с
-исправленным воспроизведением видео и записей стримов. Форк: `zamelek/LibreTube`, ветка `master`.
-Публикация в Google Play не нужна, только APK и релизы на GitHub.
+Android YouTube client based on [LibreTube](https://github.com/libre-tube/LibreTube) (upstream 32.1)
+with fixed playback of videos and livestream recordings. Fork: `zamelek/LibreTube`, branch `master`.
+There is no need to publish to Google Play, only APKs and GitHub releases.
 
-## Что было сломано и что сделано
+## What was broken and what was done
 
-Симптомы владельца: обычные видео не открывались (бесконечная крутилка), записи стримов на WiFi
-часто падали с ошибкой, на мобильной сети (5G) всё работало. Само приложение (дизайн, экстрактор,
-PoToken) при этом рабочее, проблема была в выборе источника воспроизведения и в отрисовке.
+Symptoms reported by the owner: regular videos did not open at all (endless loading spinner),
+livestream recordings often failed with a playback error on WiFi, while everything worked on the
+mobile network (5G). The app itself (design, extractor, PoToken) works, the problem was the choice of
+the playback source and how the video was rendered.
 
-1. **Источник воспроизведения** (`services/OnlinePlayerService.kt`). Раньше всегда использовался
-   SABR (`player/Sabr*`, `player/parser/SabrClient.kt`): отдельный блокирующий запрос на каждый
-   сегмент, скорость закачки около 1x от реального времени, буфер не копится, плеер вечно
-   буферизуется. Теперь порядок такой: **DASH (прямые ссылки) → SABR → HLS**
-   (`getStreamSources()`). Если источник падает с ошибкой, `onPlaybackError()` переключает плеер на
-   следующий с той же позиции.
-2. **Гонка с `STATE_IDLE`.** После ошибки ExoPlayer переходит в IDLE, а сервис в этом состоянии
-   звал `onDestroy()`. При переключении источника приходит ещё и устаревший IDLE уже после
-   `prepare()`, когда `playerError == null`. Поэтому есть флаг `isSwitchingSource`, он снимается
-   только по `STATE_READY` (не по BUFFERING: `prepare()` синхронно ставит BUFFERING раньше, чем
-   приходит устаревший IDLE).
-3. **Крошечный кадр.** `SurfaceView` рисовал видео размером с марку в левом верхнем углу (Pixel 8a и
-   эмулятор, Android 16/17, внутри `MotionLayout`). Обходное решение: `app:surface_type="texture_view"`
-   в `layout/fragment_player.xml` и `layout-land/fragment_player.xml`. Скриншот кадра в
-   `PlayerFragment` поддерживает оба типа (`TextureView.bitmap` / `PixelCopy`). Корневую причину в
-   `SurfaceView` не искали.
-4. **Рекомендации** под плеером: один вертикальный список во всех ориентациях
-   (`PlayerFragment`), карточки подгружаются по 6 штук при прокрутке
-   (`RELATED_STREAMS_PAGE_SIZE`), потому что список лежит внутри `ScrollView` и не переиспользует
-   view.
-5. **Повторы.** `getStreamsWithRetry()` делает до 3 попыток получить данные видео, иначе одна
-   сетевая ошибка оставляла интерфейс с вечным спиннером.
-6. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), чтобы ставиться рядом с
-   оригиналом (другая подпись, оригинал не удалять).
+1. **Playback source** (`services/OnlinePlayerService.kt`). Previously SABR was always used
+   (`player/Sabr*`, `player/parser/SabrClient.kt`): one blocking request per segment, download speed
+   of about 1x real time, so the buffer never fills and the player keeps buffering. The order is now
+   **DASH (direct URLs) → SABR → HLS** (`getStreamSources()`). If a source fails with an error,
+   `onPlaybackError()` switches the player to the next one at the same position.
+2. **`STATE_IDLE` race.** After an error ExoPlayer goes to IDLE, and the service called
+   `onDestroy()` in that state. When switching sources, a stale IDLE event also arrives after
+   `prepare()`, when `playerError == null`. Hence the `isSwitchingSource` flag, which is cleared only
+   on `STATE_READY` (not on BUFFERING: `prepare()` sets BUFFERING synchronously, before the stale
+   IDLE arrives).
+3. **Tiny video frame.** `SurfaceView` drew the video as a tiny frame in the top-left corner
+   (Pixel 8a and the emulator, Android 16/17, inside the `MotionLayout`). Workaround:
+   `app:surface_type="texture_view"` in `layout/fragment_player.xml` and
+   `layout-land/fragment_player.xml`. The screenshot button in `PlayerFragment` supports both view
+   types (`TextureView.bitmap` / `PixelCopy`). The root cause in `SurfaceView` was not investigated.
+4. **Related videos** below the player: a single vertical list in every orientation
+   (`PlayerFragment`), cards are revealed 6 at a time while scrolling
+   (`RELATED_STREAMS_PAGE_SIZE`), because the list lives inside a `ScrollView` and does not recycle
+   its views.
+5. **Retries.** `getStreamsWithRetry()` makes up to 3 attempts to fetch the video data, otherwise a
+   single network error left the UI with a spinner forever.
+6. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
+   next to the original app (different signature, never uninstall the original).
 
-## Сборка и запуск
+## Build and run
 
 ```bash
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 export ANDROID_HOME=$HOME/Library/Android/sdk
 ./gradlew assembleDebug            # app/build/outputs/apk/debug/app-debug.apk
-./gradlew assembleRelease          # неподписанный, R8 включён; подпись делает CI
+./gradlew assembleRelease          # unsigned, R8 enabled; CI does the signing
 ```
 
-- В CI используется JDK 17, локально работает JDK 21 из brew (`openjdk@21`).
-- Gradle сам докачал Android SDK Platform 36 в `~/Library/Android/sdk` (в SDK была только 37).
-- Первый запуск debug-сборки показывает экран приветствия: выбрать «None», нажать OK.
-- Тестовое устройство: Pixel 8a по USB (serial `49261JEKB11306`), есть эмулятор `a17`
-  (`~/Library/Android/sdk/emulator/emulator -avd a17`). При двух устройствах всегда `adb -s <serial>`.
-  USB у телефона часто отваливается: длинные записи логов запускать на самом устройстве
-  (`adb shell "nohup logcat --pid=<PID> -v time -f /sdcard/x.log &"`), потом `adb pull`.
-- Открыть видео для теста: `adb shell am start -a android.intent.action.VIEW -d
+- CI uses JDK 17, locally JDK 21 from brew (`openjdk@21`) works.
+- Gradle downloaded Android SDK Platform 36 into `~/Library/Android/sdk` by itself (only 37 was
+  installed).
+- The first launch of a debug build shows a welcome screen: keep "None" selected and tap OK.
+- Test device: Pixel 8a over USB (serial `49261JEKB11306`), plus the emulator `a17`
+  (`~/Library/Android/sdk/emulator/emulator -avd a17`). With two devices always use
+  `adb -s <serial>`. The phone's USB connection drops often: run long log captures on the device
+  itself (`adb shell "nohup logcat --pid=<PID> -v time -f /sdcard/x.log &"`) and `adb pull` them
+  afterwards.
+- Open a video for testing: `adb shell am start -a android.intent.action.VIEW -d
   "https://www.youtube.com/watch?v=<id>" com.github.libretube.fork.debug`.
-- Замер рывков: `adb shell dumpsys gfxinfo <пакет> reset`, прокрутка через `input swipe`, затем
-  `dumpsys gfxinfo <пакет>`. Debug-сборка заметно медленнее release (99-й перцентиль кадра
-  ~120-150 мс против ~50 мс), сравнивать нужно на release.
-- Как проверить фолбэк: временно подменить DASH-источник в `setStreamSource()` на заведомо
-  недоступный URL и убедиться, что в логе появилось `source DASH failed, trying the next one`, а
-  SABR начал грузить сегменты (`SabrStream: getNextSegment`). Временный код потом убрать.
-- Диалог «Локальная версия доступна» (`PlayOfflineDialog`) появляется у видео, которые уже
-  скачаны. Пока на него не ответить, плеер стоит с крутилкой, а «Yes» для видео, скачанного только
-  как аудио, даёт чёрное видеополе (так и задумано апстримом).
+- Measuring jank: `adb shell dumpsys gfxinfo <package> reset`, scroll with `input swipe`, then
+  `dumpsys gfxinfo <package>`. Debug builds are noticeably slower than release (99th percentile
+  frame time ~120-150 ms vs ~50 ms), so compare on release builds.
+- How to test the fallback: temporarily replace the DASH source in `setStreamSource()` with an
+  unreachable URL and check that the log shows `source DASH failed, trying the next one` and that
+  SABR starts loading segments (`SabrStream: getNextSegment`). Remove the temporary code afterwards.
+- The "local version available" dialog (`PlayOfflineDialog`) appears for videos that are already
+  downloaded. Until it is answered the player shows a spinner, and "Yes" for a video that was
+  downloaded as audio only gives a black video area (this is upstream behaviour).
 
-## CI/CD и релизы
+## CI/CD and releases
 
-- `.github/workflows/ci.yml`: на каждый push/PR собирает debug-APK; на `master` обновляет
-  pre-release `nightly`.
-- `.github/workflows/build-release.yml`: запускается тегом `v*` (или вручную с входом `tag`),
-  собирает `assembleRelease`, подписывает, публикует GitHub Release с автоматическими заметками.
-  Файл называется `LibreTube-<тег>.apk`.
-- Секреты репозитория (значения не читаются обратно): `ANDROID_RELEASE_SIGNING_KEY` (keystore в
+- `.github/workflows/ci.yml`: builds a debug APK on every push/PR; on `master` it also refreshes the
+  `nightly` pre-release.
+- `.github/workflows/build-release.yml`: triggered by a `v*` tag (or manually with the `tag` input),
+  runs `assembleRelease`, signs the APK and publishes a GitHub Release with generated notes. The
+  asset is named `LibreTube-<tag>.apk`.
+- Repository secrets (values cannot be read back): `ANDROID_RELEASE_SIGNING_KEY` (keystore as
   base64), `ANDROID_RELEASE_KEY_ALIAS`, `ANDROID_RELEASE_KEYSTORE_PASSWORD`,
-  `ANDROID_RELEASE_KEY_PASSWORD`. CI без них не падает: debug-APK подписывается debug-ключом.
-- **Keystore лежит вне репозитория**: `~/.android-keys/libretube-release.jks` и
-  `libretube-release.properties` (alias `libretube`, пароли). Нужна резервная копия: без ключа
-  обновления поверх установленных APK не встанут.
-- **Репозиторий публичный, ключ нельзя класть в переменные (Variables), артефакты, коммиты или
-  логи**: кто его получит, сможет подписывать APK, которые обновят установленное приложение.
-  Для восстановления ключа пользоваться резервной копией файла, не CI.
-- Чтобы выпустить релиз: поднять `versionCode`/`versionName` в `app/build.gradle.kts`, добавить
-  `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`, закоммитить, запушить и
+  `ANDROID_RELEASE_KEY_PASSWORD`. CI does not fail without them: the debug APK is then signed with
+  the debug key.
+- **The keystore lives outside the repository**: `~/.android-keys/libretube-release.jks` and
+  `libretube-release.properties` (alias `libretube`, passwords). Keep a backup: without the key,
+  updates over installed APKs will not install.
+- **The repository is public. Never put the key into Variables, artifacts, commits or logs**:
+  whoever gets it can sign APKs that update the installed app. Recover the key from the backup of
+  the file, not from CI.
+- To make a release: bump `versionCode`/`versionName` in `app/build.gradle.kts`, add
+  `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`, commit, push, then
   `git tag vX.Y.Z && git push origin vX.Y.Z`.
-- Actions в форке пришлось включить вручную владельцу, пока это не сделано, push не запускает CI.
+- The owner had to enable Actions in the fork manually; until that is done, pushes do not start CI.
 
-## Карта кода (то, что важно для воспроизведения)
+## Code map (what matters for playback)
 
-- `api/NewPipeMediaServiceRepository.kt`: `getStreams()`, все данные берутся из NewPipeExtractor
-  (форк libre-tube на JitPack, версия в `gradle/libs.versions.toml`), PoToken через
-  `api/poToken/` (WebView).
-- `services/OnlinePlayerService.kt`: выбор источника, фолбэк, повторы. Базовый класс
-  `services/AbstractPlayerService.kt` (хук `onPlaybackError()`, тост об ошибке, `onDestroy()`).
-- `helpers/PlayerHelper.kt` / `helpers/DashHelper.kt`: сборка DASH-манифеста из прямых ссылок.
-- `player/Sabr*`, `player/parser/*`, `player/manifest/*`: собственная реализация SABR.
-- `ui/fragments/PlayerFragment.kt`: экран плеера, диалог локальной версии, рекомендации.
-- `ui/views/CustomExoPlayerView.kt`, `layout/custom_exo_player_view_template.xml`: обёртка над
+- `api/NewPipeMediaServiceRepository.kt`: `getStreams()`, all data comes from NewPipeExtractor (the
+  libre-tube fork on JitPack, version in `gradle/libs.versions.toml`), PoToken via `api/poToken/`
+  (WebView).
+- `services/OnlinePlayerService.kt`: source selection, fallback, retries. Base class
+  `services/AbstractPlayerService.kt` (the `onPlaybackError()` hook, the error toast, `onDestroy()`).
+- `helpers/PlayerHelper.kt` / `helpers/DashHelper.kt`: builds the DASH manifest from direct URLs.
+- `player/Sabr*`, `player/parser/*`, `player/manifest/*`: the custom SABR implementation.
+- `ui/fragments/PlayerFragment.kt`: the player screen, the local version dialog, related videos.
+- `ui/views/CustomExoPlayerView.kt`, `layout/custom_exo_player_view_template.xml`: wrapper around the
   Media3 `PlayerView`.
 
-## Что не проверено и известные вопросы
+## Not verified and open questions
 
-- Ошибка, которая была именно на WiFi владельца, у меня не воспроизвелась как сетевая (на
-  телефоне WiFi двойной стек IPv4+IPv6). Причиной в итоге были медленный SABR и падение сервиса.
-  Если на WiFi снова будет ошибка воспроизведения, снять логи и смотреть, какая из цепочки
-  DASH/SABR/HLS отваливается.
-- Записи стримов (livestream VOD) целенаправленно не тестировались.
-- Жалоба «после выбора другого видео вечная крутилка» не воспроизвелась: три видео подряд
-  переключались нормально; вероятная причина - диалог локальной версии (владелец подтвердил, что
-  перед этим скачивал аудио и диалог появлялся).
-- Прокрутка рекомендаций во время воспроизведения на debug-сборке даёт около 5-6% рваных кадров,
-  на release лучше, но до конца причина не выяснена.
-- Релизная сборка (R8) проверялась установкой и запуском без полного прогона сценариев.
+- The error the owner saw specifically on WiFi could not be reproduced as a network problem (the
+  phone's WiFi is dual stack IPv4+IPv6). The causes turned out to be slow SABR and the service being
+  destroyed. If playback errors on WiFi come back, capture logs and check which link of the
+  DASH/SABR/HLS chain fails.
+- Livestream recordings (livestream VODs) were not tested specifically.
+- The report "after picking another video it loads forever" could not be reproduced: three videos in
+  a row switched fine. The likely cause is the local version dialog (the owner confirmed they had
+  downloaded the audio first and the dialog appeared).
+- Scrolling related videos during playback gives about 5-6% janky frames on a debug build; release is
+  better, but the cause was not fully explained.
+- The release build (R8) was checked by installing and launching it, without running every scenario.
 
-## Подводные камни окружения
+## Environment pitfalls
 
-- macOS: `sed -i` требует другой синтаксис (BSD), для правок использовать Python или инструмент
-  редактирования. В zsh `grep --include=*.kt` надо брать в кавычки.
+- macOS: `sed -i` needs different syntax (BSD), so use Python or the editing tool for file changes.
+  In zsh, quote globs such as `grep --include='*.kt'`.
