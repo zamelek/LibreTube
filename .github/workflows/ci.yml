@@ -43,16 +43,22 @@ jobs:
         uses: ilharp/sign-android-release@v2
         with:
           releaseDir: app/build/outputs/apk/debug
-          signingKey: ${{ secrets.ANDROID_SIGNING_KEY }}
-          keyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          signingKey: ${{ secrets.ANDROID_RELEASE_SIGNING_KEY }}
+          keyAlias: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+
+      # fall back to the (debug key signed) APK if no signing secrets are configured
+      - name: Pick APK
+        run: |
+          cd app/build/outputs/apk/debug
+          if [ -f app-debug-signed.apk ]; then cp app-debug-signed.apk LibreTube-debug.apk; else cp app-debug.apk LibreTube-debug.apk; fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v6
         with:
           name: app
-          path: app/build/outputs/apk/debug/app-debug-signed.apk
+          path: app/build/outputs/apk/debug/LibreTube-debug.apk
 
   release-nightly:
     if: github.ref_name == 'master'
@@ -87,7 +93,7 @@ jobs:
           prerelease: true
           allowUpdates: true
           updateOnlyUnreleased: true
-          artifacts: app-debug-signed.apk
+          artifacts: LibreTube-debug.apk
           name: LibreTube Nightly ${{ env.DATE }}
           body: |
             LibreTube Nightly build from ${{ env.DATE }} ${{ env.TIME }}

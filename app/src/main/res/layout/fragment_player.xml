@@ -153,7 +153,7 @@
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/related_rec_view"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
 
         </LinearLayout>
@@ -181,7 +181,7 @@
         app:layout_constraintStart_toStartOf="@id/main_container"
         app:layout_constraintTop_toTopOf="@id/main_container"
         app:show_buffering="when_playing"
-        app:surface_type="surface_view" />
+        app:surface_type="texture_view" />
 
     <ImageView
         android:id="@+id/close_imageView"

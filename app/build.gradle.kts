@@ -31,11 +31,11 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.github.libretube"
+        applicationId = "com.github.libretube.fork"
         minSdk = 26
         targetSdk = 36
-        versionCode = 72
-        versionName = "32.1"
+        versionCode = 73
+        versionName = "32.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue("string", "app_name", "LibreTube")
     }
