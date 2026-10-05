@@ -53,7 +53,41 @@ the playback source and how the video was rendered.
    `adb shell dumpsys display | grep -m1 mBrightnessReason` must show `override(<package>/...)`
    instead of `automatic`, and `dumpsys window windows` shows `sbrt=` on the fullscreen window.
 9. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
-   next to the original app (different signature, never uninstall the original).
+   next to the original app (different signature, so the fork can never update the original). The
+   owner has since removed the original from the phone and uses only the fork.
+
+## Release history of the fork
+
+All releases are signed with the same key and published at
+https://github.com/zamelek/LibreTube/releases. Each version has a one line changelog in
+`fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`.
+
+| Version | versionCode | What changed |
+|---------|-------------|--------------|
+| 32.1.1  | 73 | DASH → SABR → HLS source chain with automatic fallback, `TextureView` instead of `SurfaceView`, vertical related list, retries for stream fetching, idle race fix, new `applicationId`, new release workflow |
+| 32.1.2  | 74 | Livestreams: skip the empty DASH manifest and use HLS, do not retry permanent errors |
+| 32.1.3  | 75 | Update check looks at this fork's releases instead of upstream |
+| 32.1.4  | 76 | Brightness swipe applies to the fullscreen dialog window, PiP window no longer keeps a stale brightness |
+
+## Files changed compared to upstream
+
+Base is upstream commit `b265e2d02`. Everything else in the tree is unchanged upstream code.
+
+- `services/OnlinePlayerService.kt`, `services/AbstractPlayerService.kt`: source selection and
+  fallback, `isSwitchingSource`, `getStreamsWithRetry()`, the `onPlaybackError()` hook.
+- `ui/fragments/PlayerFragment.kt`: vertical paged related list, screenshot for both view types,
+  forwards PiP changes to the player view.
+- `ui/views/CustomExoPlayerView.kt`, `helpers/BrightnessHelper.kt`: brightness follows the shown
+  window, PiP reset.
+- `res/layout/fragment_player.xml`, `res/layout-land/fragment_player.xml`: `texture_view` surface and
+  the related list width.
+- `api/ExternalApi.kt`: update check URL.
+- `app/build.gradle.kts`: `applicationId`, version.
+- `.github/workflows/ci.yml`, `.github/workflows/build-release.yml`: signing with the fork's secrets,
+  nightly and tag releases.
+- `fastlane/metadata/android/en-US/changelogs/73.txt` to `76.txt`, `AGENTS.md`, `CLAUDE.md`.
+
+The SABR classes, the extractor, the DASH manifest builder and the UI design are untouched.
 
 ## Build and run
 
@@ -140,7 +174,10 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
   downloaded the audio first and the dialog appeared).
 - Scrolling related videos during playback gives about 5-6% janky frames on a debug build; release is
   better, but the cause was not fully explained.
-- The release build (R8) was checked by installing and launching it, without running every scenario.
+- The release build (R8) was checked by installing it and running the livestream, the fullscreen
+  brightness swipe and a normal video; not every screen was exercised.
+- A one-off job for the owner: the `Music` playlist of a LibreTube backup was sorted by song and then
+  by upload date (hand made mapping from video titles to songs). That script is not part of the repo.
 
 ## Environment pitfalls
 
