@@ -1,0 +1,1 @@
+SponsorBlock: segments you seek into yourself are no longer skipped automatically (seeking into a segment at the end of a video used to jump to the end and restart it). The seek bar now shows the segments in their category colors, below the scrubber.

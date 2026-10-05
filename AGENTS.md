@@ -52,7 +52,20 @@ the playback source and how the video was rendered.
    How to verify: in fullscreen swipe on the left half, then
    `adb shell dumpsys display | grep -m1 mBrightnessReason` must show `override(<package>/...)`
    instead of `automatic`, and `dumpsys window windows` shows `sbrt=` on the fullscreen window.
-9. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
+9. **SponsorBlock and seeking.** `AbstractPlayerService.checkForSegments()` used to skip every
+   automatic segment the player position is in, also after the user seeked into it. For a segment
+   that runs to the end of the video (the `sponsor` segments of the "World of Tanks ... (Gingertail
+   Cover)" videos in the owner's Music playlist) this jumped to the end, showed the "Skipped segment"
+   toast and, with the owner's repeat mode `ALL`, restarted the video. A position jump larger than
+   `SEEK_DETECTION_THRESHOLD_MS` between two 100 ms checks is now treated as a user seek and the
+   segment is remembered in `segmentSeekedInto`; it is not skipped until the position has left it.
+   Playback that enters a segment on its own is still skipped. Checked with `KEYCODE_MEDIA_FAST_FORWARD`
+   (15 s steps): landing inside a segment keeps playing, playing into it skips and starts the next video.
+10. **Seek bar segments.** `ui/views/MarkableTimeBar.kt` draws the SponsorBlock segments in the color of
+   their category (the preference colors if "custom colors" is on, otherwise the defaults from
+   `sponsorblock_settings.xml`), 3 dp high, 67% opaque, *below* the progress line and the scrubber.
+   Before, they were drawn above the scrubber in a dull theme color.
+11. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
    next to the original app (different signature, so the fork can never update the original). The
    owner has since removed the original from the phone and uses only the fork.
 
@@ -68,6 +81,7 @@ https://github.com/zamelek/LibreTube/releases. Each version has a one line chang
 | 32.1.2  | 74 | Livestreams: skip the empty DASH manifest and use HLS, do not retry permanent errors |
 | 32.1.3  | 75 | Update check looks at this fork's releases instead of upstream |
 | 32.1.4  | 76 | Brightness swipe applies to the fullscreen dialog window, PiP window no longer keeps a stale brightness |
+| 32.1.5  | 77 | SponsorBlock segments are not auto-skipped after the user seeks into them, segments are shown in color on the seek bar |
 
 ## Files changed compared to upstream
 
@@ -79,6 +93,8 @@ Base is upstream commit `b265e2d02`. Everything else in the tree is unchanged up
   forwards PiP changes to the player view.
 - `ui/views/CustomExoPlayerView.kt`, `helpers/BrightnessHelper.kt`: brightness follows the shown
   window, PiP reset.
+- `services/AbstractPlayerService.kt` (`checkForSegments()`), `ui/views/MarkableTimeBar.kt`:
+  SponsorBlock seek handling and the colored segments on the seek bar.
 - `res/layout/fragment_player.xml`, `res/layout-land/fragment_player.xml`: `texture_view` surface and
   the related list width.
 - `api/ExternalApi.kt`: update check URL.
