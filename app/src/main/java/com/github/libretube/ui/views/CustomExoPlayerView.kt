@@ -160,6 +160,17 @@ class CustomExoPlayerView(
      * If null, the activity's default/main window will be used
      */
     var currentWindow: Window? = null
+        set(value) {
+            val previousWindow = field
+            field = value
+
+            // the brightness has to be set on the window that is shown on top, so move it
+            previousWindow?.let { brightnessHelper.resetToSystemBrightness(it) }
+            brightnessHelper.resetToSystemBrightness(activity.window)
+            if (value != null && isFullscreen() && PlayerHelper.swipeGestureEnabled) {
+                brightnessHelper.restoreSavedBrightness()
+            }
+        }
 
     private var selectedResolution: Int? = null
     var sponsorBlockAutoSkip = true
@@ -177,7 +188,7 @@ class CustomExoPlayerView(
     private var noFullscreenResolution: Int? = null
 
     init {
-        brightnessHelper = BrightnessHelper(activity)
+        brightnessHelper = BrightnessHelper(activity) { getWindow() }
         playerGestureController = PlayerGestureController(activity, this)
         audioHelper = AudioHelper(context)
         fullscreenGestureAnimationController = FullscreenGestureAnimationController(
@@ -1339,6 +1350,20 @@ class CustomExoPlayerView(
             player.playbackParameters = PlaybackParameters(it, player.playbackParameters.pitch)
         }
         rememberedPlaybackSpeed = null
+    }
+
+    /**
+     * The PiP window stays on top of all other windows. If it kept the brightness set by the swipe
+     * gesture, the system would ignore the brightness of every other window as long as it is open.
+     */
+    fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        if (!PlayerHelper.swipeGestureEnabled) return
+
+        if (isInPictureInPictureMode) {
+            brightnessHelper.resetToSystemBrightness()
+        } else if (isFullscreen()) {
+            brightnessHelper.restoreSavedBrightness()
+        }
     }
 
     override fun onFullscreenChange(isFullscreen: Boolean) {

@@ -1368,6 +1368,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+        binding.player.onPictureInPictureModeChanged(isInPictureInPictureMode)
         if (isInPictureInPictureMode) {
             // hide and disable exoPlayer controls
             disableController()

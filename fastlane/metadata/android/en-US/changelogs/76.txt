@@ -1,0 +1,1 @@
+Fix the brightness swipe gesture in fullscreen: the brightness is now applied to the fullscreen window, so the screen brightness really changes. The picture in picture window no longer keeps a stale brightness.

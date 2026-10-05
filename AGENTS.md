@@ -42,7 +42,17 @@ the playback source and how the video was rendered.
    pointed at `libre-tube/LibreTube`, so the fork offered to install the original app at every start
    (the check shows the dialog whenever the digits of the latest release name differ from
    `versionName`; release names equal the tag, e.g. `v32.1.3`).
-8. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
+8. **Brightness swipe.** Fullscreen is shown in a separate `Dialog` (`PlayerFragment.fullscreenDialog`)
+   with its own window. `BrightnessHelper` used to set the brightness on the activity window, which
+   is covered by the dialog, so the system ignored it: the on-screen slider moved but the screen
+   brightness did not change. `BrightnessHelper` now takes a window provider
+   (`CustomExoPlayerView.getWindow()`), and the `currentWindow` setter moves the override to the new
+   window. The PiP window also kept a stale override and, being always on top, blocked every other
+   window's brightness, so it is reset in `CustomExoPlayerView.onPictureInPictureModeChanged()`.
+   How to verify: in fullscreen swipe on the left half, then
+   `adb shell dumpsys display | grep -m1 mBrightnessReason` must show `override(<package>/...)`
+   instead of `automatic`, and `dumpsys window windows` shows `sbrt=` on the fullscreen window.
+9. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
    next to the original app (different signature, never uninstall the original).
 
 ## Build and run
@@ -130,10 +140,6 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
   downloaded the audio first and the dialog appeared).
 - Scrolling related videos during playback gives about 5-6% janky frames on a debug build; release is
   better, but the cause was not fully explained.
-- Brightness swipe (left half of the screen in fullscreen; the right half is volume, the indicator is
-  drawn on the opposite side): checked on the phone, the window brightness changed
-  (`dumpsys window windows`, `sbrt=` of the app window). The owner reported it as not working, which
-  could not be reproduced; it works only in fullscreen and only when the "swipe controls" setting is on.
 - The release build (R8) was checked by installing and launching it, without running every scenario.
 
 ## Environment pitfalls

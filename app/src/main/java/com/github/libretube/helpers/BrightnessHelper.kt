@@ -1,12 +1,21 @@
 package com.github.libretube.helpers
 
 import android.app.Activity
+import android.view.Window
 import android.view.WindowManager
 import kotlin.math.exp
 import kotlin.math.ln
 
-class BrightnessHelper(activity: Activity) {
-    private val window = activity.window
+/**
+ * @param windowProvider provides the window whose brightness should be changed. This must be the
+ * window that is currently shown on top (e.g. the fullscreen dialog), since the system ignores the
+ * brightness of windows that are covered by another full screen window.
+ */
+class BrightnessHelper(
+    private val activity: Activity,
+    private val windowProvider: () -> Window = { activity.window }
+) {
+    private val window get() = windowProvider()
 
     /**
      * Wrapper for the current screen brightness, linearly scaled between 0 and 1.
@@ -31,8 +40,8 @@ class BrightnessHelper(activity: Activity) {
     /**
      * Restore screen brightness to device system brightness.
      */
-    fun resetToSystemBrightness() {
-        window.attributes = window.attributes.apply {
+    fun resetToSystemBrightness(target: Window = window) {
+        target.attributes = target.attributes.apply {
             screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
         }
     }
@@ -41,6 +50,9 @@ class BrightnessHelper(activity: Activity) {
      * Set current screen brightness to saved brightness value.
      */
     fun restoreSavedBrightness() {
+        // nothing was saved yet, i.e. the brightness was never changed by the user
+        if (!savedWindowBrightness.isFinite()) return
+
         windowBrightness = savedWindowBrightness
     }
 
