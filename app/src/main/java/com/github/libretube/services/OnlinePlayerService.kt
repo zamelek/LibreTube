@@ -85,6 +85,8 @@ open class OnlinePlayerService : AbstractPlayerService() {
     private var streamSources = listOf<StreamSource>()
     private var streamSourceIndex = 0
 
+    private var consecutiveFetchFailures = 0
+
     private val hasFallbackSource get() = streamSourceIndex + 1 < streamSources.size
 
     /**
@@ -176,7 +178,11 @@ open class OnlinePlayerService : AbstractPlayerService() {
                     toastFromMainDispatcher(e.localizedMessage.orEmpty())
                     return@withContext null
                 }
-            } ?: return@launch
+            } ?: run {
+                skipToNextVideoAfterFailure()
+                return@launch
+            }
+            consecutiveFetchFailures = 0
 
             streams?.toStreamItem(videoId)?.let {
                 // save the current stream to the queue
@@ -229,6 +235,21 @@ open class OnlinePlayerService : AbstractPlayerService() {
             }
         }
         return MediaServiceRepository.instance.getStreams(videoId)
+    }
+
+    /**
+     * The video could not be loaded. Instead of leaving the player loading forever, try the next
+     * video of the queue (but only a few times in a row, e.g. if there is no network connection).
+     */
+    private fun skipToNextVideoAfterFailure() {
+        if (consecutiveFetchFailures >= MAX_CONSECUTIVE_FETCH_FAILURES) {
+            consecutiveFetchFailures = 0
+            return
+        }
+
+        val nextVideoId = PlayingQueue.getNext() ?: return
+        consecutiveFetchFailures++
+        navigateVideo(nextVideoId)
     }
 
     private fun configurePlayer(seekToPositionMs: Long) {
@@ -430,4 +451,5 @@ open class OnlinePlayerService : AbstractPlayerService() {
 }
 
 private const val STREAMS_FETCH_ATTEMPTS = 3
+private const val MAX_CONSECUTIVE_FETCH_FAILURES = 3
 private const val STREAMS_FETCH_RETRY_DELAY_MS = 700L

@@ -69,7 +69,19 @@ the playback source and how the video was rendered.
    and a segment continues the line. The scrubbing position comes from an `OnScrubListener`.
    Categories set to "Manual" in Settings → SponsorBlock are shown on the bar without being skipped
    automatically; "Off" categories are not requested and therefore not shown.
-11. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
+11. **Dead pooled connections (the "floating" loading wheel).** After a video ended, fetching the
+   streams of the next one timed out three times in a row (`SocketTimeoutException` in
+   `YoutubeStreamHelper.getVisionOsPlayerResponse`, 10 s each) and the player showed a wheel forever.
+   The extractor's `OkHttpClient` (`util/NewPipeDownloaderImpl.kt`) kept an HTTP/2 connection in its
+   pool that the router had silently dropped while the video played, and all retries reused it.
+   This is also why the owner saw errors on WiFi but not on mobile data. The client now closes idle
+   connections after 20 s, pings HTTP/2 connections every 15 s, and on an `IOException` drops the
+   whole pool and repeats the request once on a new connection.
+   The log line to look for: `failed to fetch streams (attempt N): java.net.SocketTimeoutException`.
+12. **Failed fetch skips to the next queue item.** If the streams of a video cannot be loaded after the
+   retries, `OnlinePlayerService.skipToNextVideoAfterFailure()` plays the next video of the queue (at
+   most 3 failures in a row) instead of leaving the player loading forever.
+13. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
    next to the original app (different signature, so the fork can never update the original). The
    owner has since removed the original from the phone and uses only the fork.
 
@@ -87,6 +99,7 @@ https://github.com/zamelek/LibreTube/releases. Each version has a one line chang
 | 32.1.4  | 76 | Brightness swipe applies to the fullscreen dialog window, PiP window no longer keeps a stale brightness |
 | 32.1.5  | 77 | SponsorBlock segments are not auto-skipped after the user seeks into them, segments are shown in color on the seek bar |
 | 32.1.6  | 78 | Seek bar segments: same thickness as the progress line, never cover the scrubber |
+| 32.1.7  | 79 | Dead pooled connections no longer cause endless loading, failed fetch plays the next queued video |
 
 ## Files changed compared to upstream
 
@@ -103,6 +116,7 @@ Base is upstream commit `b265e2d02`. Everything else in the tree is unchanged up
 - `res/layout/fragment_player.xml`, `res/layout-land/fragment_player.xml`: `texture_view` surface and
   the related list width.
 - `api/ExternalApi.kt`: update check URL.
+- `util/NewPipeDownloaderImpl.kt`: connection pool, HTTP/2 ping and retry on a fresh connection.
 - `app/build.gradle.kts`: `applicationId`, version.
 - `.github/workflows/ci.yml`, `.github/workflows/build-release.yml`: signing with the fork's secrets,
   nightly and tag releases.
@@ -190,9 +204,9 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
   DASH/SABR/HLS chain fails.
 - Recordings of finished livestreams (VODs) were not tested specifically; they go through the normal
   DASH → SABR → HLS chain. Live streams are covered (see above).
-- The report "after picking another video it loads forever" could not be reproduced: three videos in
-  a row switched fine. The likely cause is the local version dialog (the owner confirmed they had
-  downloaded the audio first and the dialog appeared).
+- The report "after picking another video it loads forever" could not be reproduced on demand. Two
+  causes are known: the local version dialog (see above) and dead pooled connections (item 11). The
+  second one was caught in the device log while it happened.
 - Scrolling related videos during playback gives about 5-6% janky frames on a debug build; release is
   better, but the cause was not fully explained.
 - The release build (R8) was checked by installing it and running the livestream, the fullscreen

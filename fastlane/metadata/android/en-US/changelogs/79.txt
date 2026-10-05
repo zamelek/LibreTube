@@ -1,0 +1,1 @@
+Fix the endless loading wheel after a video ends on WiFi: connections that the router silently dropped are no longer reused (requests ran into timeouts), and if the next video still cannot be loaded the next one of the queue is played instead.
