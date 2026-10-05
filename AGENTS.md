@@ -140,6 +140,18 @@ the playback source and how the video was rendered.
    tried yet: a Google login in a WebView and cookies (needs the web client with PoToken and SABR
    instead of the visionOS client, a big change) and the OAuth device flow of the YouTube TV client
    (`google.com/device`, uncertain whether Google still accepts tokens of a third-party client).
+   **The official Google Play Services refuses too, with a different reason.** Tested on the same Samsung
+   after removing ReVanced GmsCore and adding the owner's account to the real GMS (account type
+   `com.google`, authenticator `com.google.android.gms`): the account chooser works and makes the
+   account visible, but `getAuthToken` for the same three YouTube scopes fails for every scope with
+   `AuthenticatorException: UnregisteredOnApiConsole`. GMS only issues OAuth tokens to an app whose
+   package name and signing certificate SHA-1 are registered as an **Android OAuth client** in a Google
+   Cloud project (with the YouTube Data API enabled). Not tried: creating such a client (needs the
+   owner's Google Cloud project; the YouTube scopes are sensitive, so the consent screen would stay in
+   "Testing" mode with the owner as a test user, and the client needs the SHA-1 of the release key for
+   `com.github.libretube.fork`, or of the debug key for `...fork.debug`). Even then it is **unverified**
+   whether InnerTube (TV/ANDROID/IOS player requests) accepts such a Bearer token: the YouTube Data API
+   does, InnerTube is a different, internal API.
    How to investigate the next time it happens (do it *while* it happens, not afterwards):
    1. On the phone open a video and look for `failed to fetch streams (attempt 1): ...SignInConfirmNotBotException` in the log.
    2. On the development machine run the opt-in probe:
