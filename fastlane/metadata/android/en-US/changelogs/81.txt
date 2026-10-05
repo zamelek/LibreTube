@@ -1,0 +1,1 @@
+Removed the automatic switch to mobile data again. The app behaves like 32.1.7.

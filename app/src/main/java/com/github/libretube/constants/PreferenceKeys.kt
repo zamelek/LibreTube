@@ -100,7 +100,6 @@ object PreferenceKeys {
 
     // Advanced
     const val AUTOMATIC_UPDATE_CHECKS = "automatic_update_checks"
-    const val USE_MOBILE_DATA_WHEN_BLOCKED = "use_mobile_data_when_blocked"
     const val DATA_SAVER_MODE = "data_saver_mode_key"
     const val RESET_SETTINGS = "reset_settings"
     const val SHARE_WITH_TIME_CODE = "share_with_time_code"

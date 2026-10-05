@@ -125,9 +125,6 @@
     <string name="youtube" translatable="false">YouTube</string>
     <string name="playOnBackground">Play in the background</string>
     <string name="update_available">Update available</string>
-    <string name="use_mobile_data_when_blocked">Use mobile data if Wi-Fi is blocked</string>
-    <string name="use_mobile_data_when_blocked_summary">If YouTube blocks the IP address of the Wi-Fi network (sign in to confirm you are not a bot), the videos are loaded over mobile data instead. This can use your mobile data.</string>
-    <string name="switched_to_mobile_data">YouTube blocks this Wi-Fi network, using mobile data</string>
     <string name="appearance">Appearance</string>
     <string name="downloads">Downloads</string>
     <string name="update_summary">Check for update</string>

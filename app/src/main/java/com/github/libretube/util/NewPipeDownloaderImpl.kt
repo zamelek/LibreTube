@@ -11,6 +11,14 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 class NewPipeDownloaderImpl : Downloader() {
+    private val client = OkHttpClient.Builder()
+        // Routers silently drop idle connections. The client would keep using such a dead connection
+        // and every request on it would run into a timeout, so idle connections are closed early
+        // and HTTP/2 connections are pinged to notice when they died.
+        .connectionPool(ConnectionPool(MAX_IDLE_CONNECTIONS, IDLE_CONNECTION_KEEP_ALIVE_SECONDS, TimeUnit.SECONDS))
+        .pingInterval(PING_INTERVAL_SECONDS, TimeUnit.SECONDS)
+        .build()
+
     @Throws(IOException::class, ReCaptchaException::class)
     override fun execute(request: Request): Response {
         val httpMethod = request.httpMethod()
@@ -64,21 +72,6 @@ class NewPipeDownloaderImpl : Downloader() {
     }
 
     companion object {
-        private val client = OkHttpClient.Builder()
-            // Routers silently drop idle connections. The client would keep using such a dead connection
-            // and every request on it would run into a timeout, so idle connections are closed early
-            // and HTTP/2 connections are pinged to notice when they died.
-            .connectionPool(ConnectionPool(MAX_IDLE_CONNECTIONS, IDLE_CONNECTION_KEEP_ALIVE_SECONDS, TimeUnit.SECONDS))
-            .pingInterval(PING_INTERVAL_SECONDS, TimeUnit.SECONDS)
-            .build()
-
-        /**
-         * Close all open connections, e.g. after the network the app uses has changed.
-         */
-        fun closeConnections() {
-            client.connectionPool.evictAll()
-        }
-
         private const val MAX_IDLE_CONNECTIONS = 5
         private const val IDLE_CONNECTION_KEEP_ALIVE_SECONDS = 20L
         private const val PING_INTERVAL_SECONDS = 15L

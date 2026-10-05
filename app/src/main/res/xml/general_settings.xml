@@ -72,13 +72,6 @@
             app:title="@string/show_updates"
             app:summary="@string/show_updates_summary" />
 
-        <SwitchPreferenceCompat
-            android:defaultValue="true"
-            android:icon="@drawable/ic_data_saver"
-            app:key="use_mobile_data_when_blocked"
-            app:title="@string/use_mobile_data_when_blocked"
-            app:summary="@string/use_mobile_data_when_blocked_summary" />
-
         <ListPreference
             android:defaultValue="disabled"
             android:entries="@array/dataSaverModeOptions"

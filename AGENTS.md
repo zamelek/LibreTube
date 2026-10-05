@@ -101,20 +101,20 @@ the playback source and how the video was rendered.
      fingerprint of the Android stack with a visionOS user agent, the state of the visitor data, ...)
      is **not** known. It started after several hours of heavy test traffic from the phone, which
      may be the trigger.
-   Mitigations in the app:
-   - `getStreamsWithRetry()` retries this error 5 times with growing pauses (2, 4, 6, 8 s).
-   - After 2 failed attempts `helpers/MobileDataFallback.kt` requests the cellular network
-     (`ConnectivityManager.requestNetwork`) and binds the whole process to it
-     (`bindProcessToNetwork`): the mobile connection is a different network identity and was not
-     challenged. It has to be the whole process, because the stream URLs only work for the IP that
-     requested them. Pooled connections of the extractor are closed on the switch. The binding ends
-     when the player service is destroyed or 20 minutes after it started, at the next video. Setting:
-     "Use mobile data if Wi-Fi is blocked" (`use_mobile_data_when_blocked`, default on), needs the
-     `CHANGE_NETWORK_STATE` permission. It costs mobile data, which is why it is a setting.
-   - Verified against a real challenge (no simulation): two `SignInConfirmNotBotException`, then
-     `all traffic is sent through the mobile network now` and the video played.
+   Mitigation: none in the app. The owner turns Wi-Fi off by hand when it happens; the app then uses
+   the mobile connection, which was not challenged. `getStreamsWithRetry()` retries every failed fetch 3
+   times (0.7 and 1.4 s pauses) and `skipToNextVideoAfterFailure()` plays the next queued video.
+   **An automatic switch to mobile data was built and removed again** (added in 32.1.8, removed in
+   32.1.9 at the owner's request, the owner prefers to decide about mobile data themselves). It is in
+   git history: `git show cd188245d`. It asked for the cellular network with
+   `ConnectivityManager.requestNetwork` after 2 bot checks and bound the whole process to it with
+   `bindProcessToNetwork` (the whole process, because stream URLs only work for the IP that requested
+   them), closed the pooled connections, ended when the player service stopped or after 20 minutes,
+   had a setting and needed `CHANGE_NETWORK_STATE`. It worked against a real challenge (two bot checks,
+   then `all traffic is sent through the mobile network now`, video played). It also retried this
+   error 5 times with 2, 4, 6, 8 s pauses, which was removed with it.
    How to investigate the next time it happens (do it *while* it happens, not afterwards):
-   1. On the phone open a video and look for `failed to fetch streams (attempt 1 of 5)` in the log.
+   1. On the phone open a video and look for `failed to fetch streams (attempt 1): ...SignInConfirmNotBotException` in the log.
    2. On the development machine run the opt-in probe:
       `BOT_CHECK_PROBE=1 ./gradlew testDebugUnitTest --tests '*BotCheckProbeTest*' -i | grep PROBE`
       (`BotCheckProbeTest` compares the ios and visionOS clients and IPv4/IPv6/both, and can send a
@@ -156,7 +156,8 @@ https://github.com/zamelek/LibreTube/releases. Each version has a one line chang
 | 32.1.5  | 77 | SponsorBlock segments are not auto-skipped after the user seeks into them, segments are shown in color on the seek bar |
 | 32.1.6  | 78 | Seek bar segments: same thickness as the progress line, never cover the scrubber |
 | 32.1.7  | 79 | Dead pooled connections no longer cause endless loading, failed fetch plays the next queued video |
-| 32.1.8  | 80 | Bot check of YouTube on the Wi-Fi IP: longer retries, then the video is loaded over mobile data (setting) |
+| 32.1.8  | 80 | Bot check of YouTube: longer retries, then the video is loaded over mobile data (setting). Removed again in 32.1.9 |
+| 32.1.9  | 81 | The mobile data switch is removed, the app behaves like 32.1.7 |
 
 ## Files changed compared to upstream
 
@@ -174,12 +175,8 @@ Base is upstream commit `b265e2d02`. Everything else in the tree is unchanged up
   the related list width.
 - `api/ExternalApi.kt`: update check URL.
 - `util/NewPipeDownloaderImpl.kt`: connection pool, HTTP/2 ping and retry on a fresh connection.
-- `helpers/MobileDataFallback.kt` (new), `res/xml/general_settings.xml`, `AndroidManifest.xml`,
-  `PlayerHelper.kt`, `PreferenceKeys.kt`, `strings.xml`: the mobile data fallback and its setting.
-- `app/build.gradle.kts`: `applicationId`, version.
-- `.github/workflows/ci.yml`, `.github/workflows/build-release.yml`: signing with the fork's secrets,
-  nightly and tag releases.
-- `fastlane/metadata/android/en-US/changelogs/73.txt` to `76.txt`, `AGENTS.md`, `CLAUDE.md`.
+- `app/src/test/java/com/github/libretube/BotCheckProbeTest.kt`: opt-in diagnostic for the YouTube bot
+  check (`BOT_CHECK_PROBE=1`), not part of the normal test run.
 
 The SABR classes, the extractor, the DASH manifest builder and the UI design are untouched.
 
