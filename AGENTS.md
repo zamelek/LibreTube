@@ -38,7 +38,11 @@ the playback source and how the video was rendered.
    (`getStreamSources()`). Tested on three live streams, and a 150 second run on HLS was stable.
    Permanent errors (`ContentNotAvailableException`, e.g. "This live stream recording is not
    available") are not retried.
-7. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
+7. **Update check.** `api/ExternalApi.kt` (`GITHUB_API_URL`) points at `zamelek/LibreTube`. Upstream
+   pointed at `libre-tube/LibreTube`, so the fork offered to install the original app at every start
+   (the check shows the dialog whenever the digits of the latest release name differ from
+   `versionName`; release names equal the tag, e.g. `v32.1.3`).
+8. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
    next to the original app (different signature, never uninstall the original).
 
 ## Build and run
@@ -70,6 +74,13 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
 - The "local version available" dialog (`PlayOfflineDialog`) appears for videos that are already
   downloaded. Until it is answered the player shows a spinner, and "Yes" for a video that was
   downloaded as audio only gives a black video area (this is upstream behaviour).
+
+## Tests
+
+- Unit tests (JVM only): `./gradlew testDebugUnitTest`. There are 9: `TextParserTest`,
+  `CompositeBufferTest`, `ParserTest` (UMP parser for SABR). All pass. CI does not run them.
+- There are no instrumented or UI tests. The `baselineprofile` module only generates the baseline
+  profile and startup benchmarks. Playback is tested manually on the phone (see above).
 
 ## CI/CD and releases
 
@@ -119,6 +130,10 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
   downloaded the audio first and the dialog appeared).
 - Scrolling related videos during playback gives about 5-6% janky frames on a debug build; release is
   better, but the cause was not fully explained.
+- Brightness swipe (left half of the screen in fullscreen; the right half is volume, the indicator is
+  drawn on the opposite side): checked on the phone, the window brightness changed
+  (`dumpsys window windows`, `sbrt=` of the app window). The owner reported it as not working, which
+  could not be reproduced; it works only in fullscreen and only when the "swipe controls" setting is on.
 - The release build (R8) was checked by installing and launching it, without running every scenario.
 
 ## Environment pitfalls

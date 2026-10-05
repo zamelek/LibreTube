@@ -1,0 +1,1 @@
+The in-app update check now looks at this fork's releases instead of the upstream LibreTube releases, so it no longer offers to install the original app.

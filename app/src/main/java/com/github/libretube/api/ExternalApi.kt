@@ -16,7 +16,8 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.Url
 
-private const val GITHUB_API_URL = "https://api.github.com/repos/libre-tube/LibreTube/releases/latest"
+// the update checker looks at the releases of this fork, not at the upstream app
+private const val GITHUB_API_URL = "https://api.github.com/repos/zamelek/LibreTube/releases/latest"
 private const val SB_API_URL = "https://sponsor.ajay.app"
 private const val RYD_API_URL = "https://ryd-proxy.kavin.rocks"
 private const val GOOGLE_API_KEY = "AIzaSyDyT5W0Jh49F30Pqqtyfdf7pDLFKLJoAnw"
