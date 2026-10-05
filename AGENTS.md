@@ -130,6 +130,16 @@ the playback source and how the video was rendered.
       signed-in session would be a big feature, with privacy and account risks.
       Cheap workaround without code: exclude LibreTube from the tunnel in the WireGuard app (tunnel
       settings, excluded applications), then the app uses the normal connection.
+   **Login through the Google account of ReVanced GmsCore does not work for this app.** Tested on the
+   Samsung: the account (type `app.revanced`, authenticator `app.revanced.android.gms`) can be chosen
+   with `AccountManager.newChooseAccountIntent` (that makes it visible to the app), but
+   `getAuthToken` for `oauth2:https://www.googleapis.com/auth/youtube`, `.../youtube.force-ssl` and
+   `.../youtube.readonly` ended with `OperationCanceledException` for every scope, i.e. GmsCore refuses
+   to issue tokens to the package `com.github.libretube.fork`. ReVanced works because its patched
+   YouTube app is special-cased by its own GmsCore. Other ways to get a signed-in session, none of them
+   tried yet: a Google login in a WebView and cookies (needs the web client with PoToken and SABR
+   instead of the visionOS client, a big change) and the OAuth device flow of the YouTube TV client
+   (`google.com/device`, uncertain whether Google still accepts tokens of a third-party client).
    How to investigate the next time it happens (do it *while* it happens, not afterwards):
    1. On the phone open a video and look for `failed to fetch streams (attempt 1): ...SignInConfirmNotBotException` in the log.
    2. On the development machine run the opt-in probe:
