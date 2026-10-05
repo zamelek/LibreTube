@@ -113,6 +113,23 @@ the playback source and how the video was rendered.
    had a setting and needed `CHANGE_NETWORK_STATE`. It worked against a real challenge (two bot checks,
    then `all traffic is sent through the mobile network now`, video played). It also retried this
    error 5 times with 2, 4, 6, 8 s pauses, which was removed with it.
+   **Two different situations.**
+   1. *Home Wi-Fi, temporary, app only.* Described above: the owner's browser worked, the Mac passed,
+      the cause is unknown.
+   2. *Datacenter / VPN IP, permanent, everyone.* The owner has a WireGuard server on Azure (their
+      `~/Projects/Personal/WireGuard` folder, contains keys, do not read or print it). With the tunnel
+      on, YouTube shows "sign in to confirm you're not a bot" to **every** anonymous client, also to
+      the browser (normal and private tab). This is a deterministic reproduction rig: a second phone
+      (Samsung SM-M215F, Android 12, serial `R58N401YBYP`, WireGuard installed) is used for it. There
+      the app fails every fetch with `SignInConfirmNotBotException`, and a probe that was built into
+      the app showed the same for the **iOS and the visionOS client** (both `LOGIN_REQUIRED`; the web
+      metadata request returned an almost empty answer). So a different client would not help on such
+      an IP, and neither would a WebView, because the browser is blocked too. ReVanced on that phone
+      works because the owner is **signed in**: signed-in sessions pass this check, anonymous ones do
+      not. The extractor has no login support (the iOS/visionOS clients do not take cookies), so a
+      signed-in session would be a big feature, with privacy and account risks.
+      Cheap workaround without code: exclude LibreTube from the tunnel in the WireGuard app (tunnel
+      settings, excluded applications), then the app uses the normal connection.
    How to investigate the next time it happens (do it *while* it happens, not afterwards):
    1. On the phone open a video and look for `failed to fetch streams (attempt 1): ...SignInConfirmNotBotException` in the log.
    2. On the development machine run the opt-in probe:
