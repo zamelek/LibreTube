@@ -99,8 +99,20 @@ the playback source and how the video was rendered.
      `getStreamsWithRetry()` while `MobileDataFallback.isActive` is false; the log must show
      `all traffic is sent through the mobile network now`, and the sockets in `/proc/net/tcp6` of the
      app's uid must have the local address of `rmnet*` instead of `wlan0`.
-   - What does not help: the extractor fork (`libre-tube/NewPipeExtractor`) had no newer commit than
-     `3e863d7`; a WebView based player request is the next thing to try if mobile data is not enough.
+   - Verified against a real block (no simulation): two `SignInConfirmNotBotException`, then
+     `all traffic is sent through the mobile network now` and the video played.
+   - What does not help:
+     - The extractor fork (`libre-tube/NewPipeExtractor`) had no newer commit than `3e863d7`.
+     - **Keeping YouTube cookies between requests.** Tried with an interceptor that stored the cookies
+       of the extractor requests and deleted them after N days: YouTube only sets `YSC`,
+       `__Secure-BUCKET` and `__Secure-YENID` for them (no visitor id), and with the cookies kept the
+       first attempt was blocked for 12 of 12 videos, exactly like without cookies (12 of 12). The block
+       is decided per IP, not per cookie. Removed again, it would only add tracking.
+     - Rotating cookies or other identity values to look like a new client: a new anonymous client on a
+       flagged IP is the one that gets challenged, and the stream URLs are bound to the IP anyway.
+     - Every failing fetch is retried 5 times, so a measurement of many videos during a block makes the
+       block worse. Keep experiments short.
+   - Not tried yet: a WebView based player request (real browser engine), and a signed-in session.
 14. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
    next to the original app (different signature, so the fork can never update the original). The
    owner has since removed the original from the phone and uses only the fork.
