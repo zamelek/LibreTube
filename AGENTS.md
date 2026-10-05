@@ -81,38 +81,62 @@ the playback source and how the video was rendered.
 12. **Failed fetch skips to the next queue item.** If the streams of a video cannot be loaded after the
    retries, `OnlinePlayerService.skipToNextVideoAfterFailure()` plays the next video of the queue (at
    most 3 failures in a row) instead of leaving the player loading forever.
-13. **YouTube blocks the IP of the Wi-Fi ("Sign in to confirm you're not a bot").** The log shows
-   `SignInConfirmNotBotException: YouTube probably temporarily blocked anonymous watch access with
-   this IP` for the player request of the extractor (only the visionOS client, no fallback client).
-   It is a per-IP decision of YouTube: the owner's home Wi-Fi IP gets it after a number of requests
-   (also from the many test runs), mobile data does not. It is intermittent, some requests pass.
-   This is the real reason for the original symptom "errors on Wi-Fi, works on 5G".
+13. **YouTube answers "Sign in to confirm you're not a bot" to the app (temporary, cause unknown).**
+   The log shows `SignInConfirmNotBotException: YouTube probably temporarily blocked anonymous watch
+   access with this IP` (thrown by `fetchVisionOsClient` → `checkPlayabilityStatus`, so the
+   response to the *visionOS* player request itself had `LOGIN_REQUIRED`). The extractor only uses
+   this one client for streaming data and has no fallback client.
+   What was measured on 2026-10-05 (same home network, Mac and phone share the router):
+   - From about 16:59 to 18:05 the phone app was challenged: first attempts failed for 24 of 24
+     videos in one window, before that intermittently. The owner's browser (a clean anonymous
+     session: only the `PREF` and `SOCS` cookies, not logged in) played videos the whole time.
+   - At about 18:15-18:45 everything passed again: 110+ visionOS requests from the Mac (IPv4, IPv6
+     and both, including a burst of 80 requests in 63 s) and 45 videos on the phone, without a single
+     challenge. So the IP itself is **not** blocked, and the request is not blocked as such: headers,
+     HTTP/2 and TLS 1.3 of the visionOS request are the same on the phone and on the Mac, the PoToken
+     provider is not used for it.
+   - The earlier conclusion "YouTube blocks the Wi-Fi IP" was therefore too strong. What is known:
+     the challenge comes and goes for a period of about an hour, it affected the app's client while a
+     browser on the same IP worked. What triggers it (volume of requests from one device, the TLS
+     fingerprint of the Android stack with a visionOS user agent, the state of the visitor data, ...)
+     is **not** known. It started after several hours of heavy test traffic from the phone, which
+     may be the trigger.
+   Mitigations in the app:
    - `getStreamsWithRetry()` retries this error 5 times with growing pauses (2, 4, 6, 8 s).
    - After 2 failed attempts `helpers/MobileDataFallback.kt` requests the cellular network
      (`ConnectivityManager.requestNetwork`) and binds the whole process to it
-     (`bindProcessToNetwork`). It has to be the whole process, because the stream URLs only work for
-     the IP that requested them. Pooled connections of the extractor are closed on the switch. The
-     binding ends when the player service is destroyed or 20 minutes after it started, at the next
-     video. Setting: "Use mobile data if Wi-Fi is blocked" (`use_mobile_data_when_blocked`, default on),
-     needs the `CHANGE_NETWORK_STATE` permission. It costs mobile data, which is why it is a setting.
-   - Test without a block: temporarily throw `SignInConfirmNotBotException` in
-     `getStreamsWithRetry()` while `MobileDataFallback.isActive` is false; the log must show
-     `all traffic is sent through the mobile network now`, and the sockets in `/proc/net/tcp6` of the
-     app's uid must have the local address of `rmnet*` instead of `wlan0`.
-   - Verified against a real block (no simulation): two `SignInConfirmNotBotException`, then
+     (`bindProcessToNetwork`): the mobile connection is a different network identity and was not
+     challenged. It has to be the whole process, because the stream URLs only work for the IP that
+     requested them. Pooled connections of the extractor are closed on the switch. The binding ends
+     when the player service is destroyed or 20 minutes after it started, at the next video. Setting:
+     "Use mobile data if Wi-Fi is blocked" (`use_mobile_data_when_blocked`, default on), needs the
+     `CHANGE_NETWORK_STATE` permission. It costs mobile data, which is why it is a setting.
+   - Verified against a real challenge (no simulation): two `SignInConfirmNotBotException`, then
      `all traffic is sent through the mobile network now` and the video played.
-   - What does not help:
-     - The extractor fork (`libre-tube/NewPipeExtractor`) had no newer commit than `3e863d7`.
-     - **Keeping YouTube cookies between requests.** Tried with an interceptor that stored the cookies
-       of the extractor requests and deleted them after N days: YouTube only sets `YSC`,
-       `__Secure-BUCKET` and `__Secure-YENID` for them (no visitor id), and with the cookies kept the
-       first attempt was blocked for 12 of 12 videos, exactly like without cookies (12 of 12). The block
-       is decided per IP, not per cookie. Removed again, it would only add tracking.
-     - Rotating cookies or other identity values to look like a new client: a new anonymous client on a
-       flagged IP is the one that gets challenged, and the stream URLs are bound to the IP anyway.
-     - Every failing fetch is retried 5 times, so a measurement of many videos during a block makes the
-       block worse. Keep experiments short.
-   - Not tried yet: a WebView based player request (real browser engine), and a signed-in session.
+   How to investigate the next time it happens (do it *while* it happens, not afterwards):
+   1. On the phone open a video and look for `failed to fetch streams (attempt 1 of 5)` in the log.
+   2. On the development machine run the opt-in probe:
+      `BOT_CHECK_PROBE=1 ./gradlew testDebugUnitTest --tests '*BotCheckProbeTest*' -i | grep PROBE`
+      (`BotCheckProbeTest` compares the ios and visionOS clients and IPv4/IPv6/both, and can send a
+      burst). If the Mac passes while the phone is challenged, the difference is in the phone, not in
+      the IP.
+   3. Open the same video in a clean browser session (Playwright or a private window) and read
+      `ytInitialPlayerResponse.playabilityStatus`.
+   Tried and did not help:
+   - A newer extractor: `libre-tube/NewPipeExtractor` has no commit newer than `3e863d7`.
+   - **Keeping YouTube cookies between requests** (an interceptor that stored the cookies of the
+     extractor requests and deleted them after N days): YouTube only sets `YSC`, `__Secure-BUCKET` and
+     `__Secure-YENID` for them (no visitor id), and with the cookies kept the first attempt was
+     challenged for 12 of 12 videos, like without cookies (12 of 12, measured inside the challenged
+     window). Removed again, it would only add tracking.
+   - Rotating cookies or other identity values to look like a new client: not tried, and a new
+     anonymous client is more likely to be challenged than an established one.
+   - Every failing fetch is retried 5 times, so measuring many videos during a challenge sends a lot
+     of requests. Keep experiments short.
+   Not tried yet: a WebView based player request (real browser engine), a fallback to the iOS client
+   when the visionOS client is challenged (the iOS client passed in all probes, but the extractor only
+   fetches it after the visionOS client succeeded, so it would need a patched extractor), a signed-in
+   session.
 14. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
    next to the original app (different signature, so the fork can never update the original). The
    owner has since removed the original from the phone and uses only the fork.
