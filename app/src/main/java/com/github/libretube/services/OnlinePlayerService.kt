@@ -42,10 +42,12 @@ import com.github.libretube.repo.UserDataRepositoryHelper
 import com.github.libretube.util.DeArrowUtil
 import com.github.libretube.util.PlayingQueue
 import com.github.libretube.util.YoutubeHlsPlaylistParser
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -165,7 +167,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
         fetchVideoInfoJob = scope.launch {
             streams = withContext(Dispatchers.IO) {
                 try {
-                    MediaServiceRepository.instance.getStreams(videoId).let {
+                    getStreamsWithRetry().let {
                         DeArrowUtil.deArrowStreams(it, videoId)
                     }
                 } catch (e: Exception) {
@@ -205,6 +207,24 @@ open class OnlinePlayerService : AbstractPlayerService() {
 
         fetchVideoInfoJob?.join()
         fetchVideoInfoJob = null
+    }
+
+    /**
+     * Fetches the streams, retrying on temporary failures (e.g. a flaky network connection),
+     * since a single failure would otherwise leave the player loading forever.
+     */
+    private suspend fun getStreamsWithRetry(): Streams {
+        repeat(STREAMS_FETCH_ATTEMPTS - 1) { attempt ->
+            try {
+                return MediaServiceRepository.instance.getStreams(videoId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG(), "failed to fetch streams (attempt ${attempt + 1}): $e")
+                delay(STREAMS_FETCH_RETRY_DELAY_MS * (attempt + 1))
+            }
+        }
+        return MediaServiceRepository.instance.getStreams(videoId)
     }
 
     private fun configurePlayer(seekToPositionMs: Long) {
@@ -399,3 +419,6 @@ open class OnlinePlayerService : AbstractPlayerService() {
             .setMetadata(streams, videoId)
             .build()
 }
+
+private const val STREAMS_FETCH_ATTEMPTS = 3
+private const val STREAMS_FETCH_RETRY_DELAY_MS = 700L
