@@ -281,6 +281,12 @@ object PlayerHelper {
             "1"
         ).replace("F", "").toFloat()
 
+    val useMobileDataWhenBlocked: Boolean
+        get() = PreferenceHelper.getBoolean(
+            PreferenceKeys.USE_MOBILE_DATA_WHEN_BLOCKED,
+            true
+        )
+
     val swipeGestureEnabled: Boolean
         get() = PreferenceHelper.getBoolean(
             PreferenceKeys.PLAYER_SWIPE_CONTROLS,

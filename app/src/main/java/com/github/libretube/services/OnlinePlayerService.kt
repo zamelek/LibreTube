@@ -32,6 +32,7 @@ import com.github.libretube.extensions.setMetadata
 import com.github.libretube.extensions.toastFromMainDispatcher
 import com.github.libretube.extensions.toastFromMainThread
 import com.github.libretube.extensions.updateParameters
+import com.github.libretube.helpers.MobileDataFallback
 import com.github.libretube.helpers.PlayerHelper
 import com.github.libretube.helpers.PlayerHelper.getSubtitleRoleFlags
 import com.github.libretube.helpers.ProxyHelper
@@ -51,6 +52,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException
+import org.schabi.newpipe.extractor.exceptions.SignInConfirmNotBotException
 
 /**
  * Loads the selected videos audio in background mode with a notification area.
@@ -159,6 +161,9 @@ open class OnlinePlayerService : AbstractPlayerService() {
     override suspend fun startPlayback() {
         super.startPlayback()
 
+        // try the default network again, the block of its IP address might be over
+        if (MobileDataFallback.isActiveForTooLong) MobileDataFallback.disable()
+
         val timestampMs = startTimestampSeconds?.times(1000) ?: 0L
         startTimestampSeconds = null
 
@@ -218,10 +223,14 @@ open class OnlinePlayerService : AbstractPlayerService() {
 
     /**
      * Fetches the streams, retrying on temporary failures (e.g. a flaky network connection),
-     * since a single failure would otherwise leave the player loading forever.
+     * since a single failure would otherwise leave the UI with a loading wheel forever.
+     *
+     * YouTube sometimes answers "sign in to confirm you're not a bot" to a single IP address. That
+     * only happens for some of the requests, so it is retried more often and with longer pauses.
      */
     private suspend fun getStreamsWithRetry(): Streams {
-        repeat(STREAMS_FETCH_ATTEMPTS - 1) { attempt ->
+        var attempt = 0
+        while (true) {
             try {
                 return MediaServiceRepository.instance.getStreams(videoId)
             } catch (e: CancellationException) {
@@ -230,11 +239,27 @@ open class OnlinePlayerService : AbstractPlayerService() {
                 // the video is permanently unavailable (private, removed, age restricted, ...)
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG(), "failed to fetch streams (attempt ${attempt + 1}): $e")
-                delay(STREAMS_FETCH_RETRY_DELAY_MS * (attempt + 1))
+                attempt++
+                val isBotCheck = e is SignInConfirmNotBotException
+                val maxAttempts = if (isBotCheck) BOT_CHECK_FETCH_ATTEMPTS else STREAMS_FETCH_ATTEMPTS
+                Log.w(TAG(), "failed to fetch streams (attempt $attempt of $maxAttempts): $e")
+
+                // the IP address of the current network seems to be blocked, so try the mobile network
+                if (isBotCheck && attempt >= BOT_CHECK_ATTEMPTS_BEFORE_MOBILE_DATA &&
+                    PlayerHelper.useMobileDataWhenBlocked && !MobileDataFallback.isActive &&
+                    MobileDataFallback.enable()
+                ) {
+                    toastFromMainDispatcher(R.string.switched_to_mobile_data)
+                    attempt = 0
+                    continue
+                }
+
+                if (attempt >= maxAttempts) throw e
+
+                val retryDelayMs = if (isBotCheck) BOT_CHECK_RETRY_DELAY_MS else STREAMS_FETCH_RETRY_DELAY_MS
+                delay(retryDelayMs * attempt)
             }
         }
-        return MediaServiceRepository.instance.getStreams(videoId)
     }
 
     /**
@@ -420,6 +445,11 @@ open class OnlinePlayerService : AbstractPlayerService() {
         if (!streams.hls.isNullOrBlank()) add(StreamSource.HLS)
     }
 
+    override fun onDestroy() {
+        MobileDataFallback.disable()
+        super.onDestroy()
+    }
+
     override fun onPlaybackError(error: PlaybackException): Boolean {
         if (!hasFallbackSource) return false
 
@@ -453,3 +483,6 @@ open class OnlinePlayerService : AbstractPlayerService() {
 private const val STREAMS_FETCH_ATTEMPTS = 3
 private const val MAX_CONSECUTIVE_FETCH_FAILURES = 3
 private const val STREAMS_FETCH_RETRY_DELAY_MS = 700L
+private const val BOT_CHECK_FETCH_ATTEMPTS = 5
+private const val BOT_CHECK_ATTEMPTS_BEFORE_MOBILE_DATA = 2
+private const val BOT_CHECK_RETRY_DELAY_MS = 2000L

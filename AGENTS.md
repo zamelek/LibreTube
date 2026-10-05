@@ -81,7 +81,27 @@ the playback source and how the video was rendered.
 12. **Failed fetch skips to the next queue item.** If the streams of a video cannot be loaded after the
    retries, `OnlinePlayerService.skipToNextVideoAfterFailure()` plays the next video of the queue (at
    most 3 failures in a row) instead of leaving the player loading forever.
-13. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
+13. **YouTube blocks the IP of the Wi-Fi ("Sign in to confirm you're not a bot").** The log shows
+   `SignInConfirmNotBotException: YouTube probably temporarily blocked anonymous watch access with
+   this IP` for the player request of the extractor (only the visionOS client, no fallback client).
+   It is a per-IP decision of YouTube: the owner's home Wi-Fi IP gets it after a number of requests
+   (also from the many test runs), mobile data does not. It is intermittent, some requests pass.
+   This is the real reason for the original symptom "errors on Wi-Fi, works on 5G".
+   - `getStreamsWithRetry()` retries this error 5 times with growing pauses (2, 4, 6, 8 s).
+   - After 2 failed attempts `helpers/MobileDataFallback.kt` requests the cellular network
+     (`ConnectivityManager.requestNetwork`) and binds the whole process to it
+     (`bindProcessToNetwork`). It has to be the whole process, because the stream URLs only work for
+     the IP that requested them. Pooled connections of the extractor are closed on the switch. The
+     binding ends when the player service is destroyed or 20 minutes after it started, at the next
+     video. Setting: "Use mobile data if Wi-Fi is blocked" (`use_mobile_data_when_blocked`, default on),
+     needs the `CHANGE_NETWORK_STATE` permission. It costs mobile data, which is why it is a setting.
+   - Test without a block: temporarily throw `SignInConfirmNotBotException` in
+     `getStreamsWithRetry()` while `MobileDataFallback.isActive` is false; the log must show
+     `all traffic is sent through the mobile network now`, and the sockets in `/proc/net/tcp6` of the
+     app's uid must have the local address of `rmnet*` instead of `wlan0`.
+   - What does not help: the extractor fork (`libre-tube/NewPipeExtractor`) had no newer commit than
+     `3e863d7`; a WebView based player request is the next thing to try if mobile data is not enough.
+14. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
    next to the original app (different signature, so the fork can never update the original). The
    owner has since removed the original from the phone and uses only the fork.
 
@@ -100,6 +120,7 @@ https://github.com/zamelek/LibreTube/releases. Each version has a one line chang
 | 32.1.5  | 77 | SponsorBlock segments are not auto-skipped after the user seeks into them, segments are shown in color on the seek bar |
 | 32.1.6  | 78 | Seek bar segments: same thickness as the progress line, never cover the scrubber |
 | 32.1.7  | 79 | Dead pooled connections no longer cause endless loading, failed fetch plays the next queued video |
+| 32.1.8  | 80 | Bot check of YouTube on the Wi-Fi IP: longer retries, then the video is loaded over mobile data (setting) |
 
 ## Files changed compared to upstream
 
@@ -117,6 +138,8 @@ Base is upstream commit `b265e2d02`. Everything else in the tree is unchanged up
   the related list width.
 - `api/ExternalApi.kt`: update check URL.
 - `util/NewPipeDownloaderImpl.kt`: connection pool, HTTP/2 ping and retry on a fresh connection.
+- `helpers/MobileDataFallback.kt` (new), `res/xml/general_settings.xml`, `AndroidManifest.xml`,
+  `PlayerHelper.kt`, `PreferenceKeys.kt`, `strings.xml`: the mobile data fallback and its setting.
 - `app/build.gradle.kts`: `applicationId`, version.
 - `.github/workflows/ci.yml`, `.github/workflows/build-release.yml`: signing with the fork's secrets,
   nightly and tag releases.

@@ -1,0 +1,1 @@
+YouTube blocking the Wi-Fi: if YouTube answers "sign in to confirm you're not a bot" for the IP address of your Wi-Fi network, the app now loads the video over mobile data (can be turned off in the settings). This error is also retried more often and with longer pauses.
