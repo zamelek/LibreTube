@@ -1,0 +1,1 @@
+Fix livestreams: they now play through HLS when YouTube provides no DASH manifest, instead of failing with a source error. Permanent errors such as unavailable videos are no longer retried.

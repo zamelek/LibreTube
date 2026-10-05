@@ -32,7 +32,13 @@ the playback source and how the video was rendered.
    its views.
 5. **Retries.** `getStreamsWithRetry()` makes up to 3 attempts to fetch the video data, otherwise a
    single network error left the UI with a spinner forever.
-6. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
+6. **Livestreams.** YouTube often returns an empty DASH manifest URL (an empty string, not `null`)
+   for livestreams. Upstream tried to open it as a file and failed instantly with "Source error".
+   Livestreams now use DASH only if the manifest is not blank, otherwise HLS directly
+   (`getStreamSources()`). Tested on three live streams, and a 150 second run on HLS was stable.
+   Permanent errors (`ContentNotAvailableException`, e.g. "This live stream recording is not
+   available") are not retried.
+7. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
    next to the original app (different signature, never uninstall the original).
 
 ## Build and run
@@ -106,7 +112,8 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
   phone's WiFi is dual stack IPv4+IPv6). The causes turned out to be slow SABR and the service being
   destroyed. If playback errors on WiFi come back, capture logs and check which link of the
   DASH/SABR/HLS chain fails.
-- Livestream recordings (livestream VODs) were not tested specifically.
+- Recordings of finished livestreams (VODs) were not tested specifically; they go through the normal
+  DASH → SABR → HLS chain. Live streams are covered (see above).
 - The report "after picking another video it loads forever" could not be reproduced: three videos in
   a row switched fine. The likely cause is the local version dialog (the owner confirmed they had
   downloaded the audio first and the dialog appeared).
@@ -116,5 +123,17 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
 
 ## Environment pitfalls
 
+- The test phone runs GrapheneOS with several profiles (Owner = user 0, plus "Spyware" and "Work").
+  `adb install` and `pm list packages` must be given `--user 0`, otherwise the app may land in
+  another profile or look missing. The owner also reinstalls the original `com.github.libretube`
+  (upstream 32.1) sometimes: when they report "Source error", first check with
+  `adb shell pm list packages --user 0 | grep libretube` and `dumpsys package <pkg>` which app
+  they are actually running.
+- The phone is the owner's daily device. A picture-in-picture window of another app can cover the
+  bottom-right "OK" button of the welcome screen; tap the left edge of the button instead
+  (about x=816, y=2300 on the 1080x2400 screen) and avoid driving the phone while it is in use.
+- A currently running livestream id for tests can be found with
+  `curl -s "https://www.youtube.com/results?search_query=live+news&sp=EgJAAQ%253D%253D"`
+  (grep `"videoId"`). Fixed ids of 24/7 streams go stale quickly.
 - macOS: `sed -i` needs different syntax (BSD), so use Python or the editing tool for file changes.
   In zsh, quote globs such as `grep --include='*.kt'`.

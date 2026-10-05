@@ -50,6 +50,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException
 
 /**
  * Loads the selected videos audio in background mode with a notification area.
@@ -219,6 +220,9 @@ open class OnlinePlayerService : AbstractPlayerService() {
                 return MediaServiceRepository.instance.getStreams(videoId)
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: ContentNotAvailableException) {
+                // the video is permanently unavailable (private, removed, age restricted, ...)
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG(), "failed to fetch streams (attempt ${attempt + 1}): $e")
                 delay(STREAMS_FETCH_RETRY_DELAY_MS * (attempt + 1))
@@ -381,13 +385,18 @@ open class OnlinePlayerService : AbstractPlayerService() {
      * blocking round trip per segment, which is too slow to keep the buffer filled on some networks.
      */
     private fun getStreamSources(streams: Streams) = buildList {
-        val hasDirectStreams = streams.videoStreams.any { it.url?.startsWith("sabr://") != true }
-        if (hasDirectStreams || (streams.isLive && streams.dash != null)) add(StreamSource.DASH)
+        // livestreams can only be played through YouTube's own manifest, which is sometimes empty
+        val hasDashSource = if (streams.isLive) {
+            !streams.dash.isNullOrBlank()
+        } else {
+            streams.videoStreams.any { it.url?.startsWith("sabr://") != true }
+        }
+        if (hasDashSource) add(StreamSource.DASH)
         // skip SABR for livestreams, as the player impl has no support for it
         if (!streams.isLive && streams.serverAbrStreamingUrl != null && streams.videoPlaybackUstreamerConfig != null) {
             add(StreamSource.SABR)
         }
-        if (streams.hls != null) add(StreamSource.HLS)
+        if (!streams.hls.isNullOrBlank()) add(StreamSource.HLS)
     }
 
     override fun onPlaybackError(error: PlaybackException): Boolean {
