@@ -1,6 +1,7 @@
 package com.github.libretube.helpers
 
 import android.app.Activity
+import android.provider.Settings
 import android.view.Window
 import android.view.WindowManager
 import kotlin.math.exp
@@ -54,6 +55,29 @@ class BrightnessHelper(
     }
 
     /**
+     * Position of the brightness slider of the system (quick settings), linearly scaled between 0 and 1.
+     *
+     * With adaptive brightness the slider is stored as adjustment in [-1, 1], otherwise as absolute value.
+     */
+    val systemBrightness: Float
+        get() {
+            val resolver = activity.contentResolver
+            val isAdaptive = Settings.System.getInt(
+                resolver,
+                Settings.System.SCREEN_BRIGHTNESS_MODE,
+                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
+            ) == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+
+            val value = if (isAdaptive) {
+                (Settings.System.getFloat(resolver, AUTO_BRIGHTNESS_ADJUSTMENT, 0f) + 1f) / 2f
+            } else {
+                val absolute = Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS, 128)
+                gammaToLinear(absolute / GAMMA_MAX.toFloat())
+            }
+            return if (value.isFinite()) value.coerceIn(0f, 1f) else 0f
+        }
+
+    /**
      * Restore screen brightness to device system brightness.
      */
     fun resetToSystemBrightness(target: Window = window) {
@@ -94,6 +118,7 @@ class BrightnessHelper(
 
     companion object {
         // constants only used for linear-gamma conversion
+        private const val AUTO_BRIGHTNESS_ADJUSTMENT = "screen_auto_brightness_adj"
         private const val GAMMA_MAX = 255.0
         private const val LINEAR_MAX = 100.0
         private const val LINEAR_OFFSET = 9.7

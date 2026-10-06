@@ -861,11 +861,7 @@ class CustomExoPlayerView(
 
     private fun initializeGestureProgress() {
         gestureViewBinding.brightnessProgressBar.let { bar ->
-            bar.progress = if (brightnessHelper.isAutomatic) {
-                0
-            } else {
-                (brightnessHelper.savedWindowBrightness * bar.max).toInt().coerceIn(0, bar.max)
-            }
+            bar.progress = currentBrightnessProgress(bar.max)
         }
         gestureViewBinding.volumeProgressBar.let { bar ->
             bar.progress = (audioHelper.deviceVolume * bar.max).toInt().coerceIn(0, bar.max)
@@ -877,9 +873,30 @@ class CustomExoPlayerView(
      */
     private var autoBrightnessOvershoot = 0f
 
+    private var isBrightnessSwipeActive = false
+
+    /**
+     * The brightness bar starts at the position of the slider of the system as long as the
+     * brightness is automatic, otherwise at the brightness chosen by the swipe before.
+     */
+    private fun currentBrightnessProgress(max: Int): Int {
+        val brightness = if (brightnessHelper.isAutomatic) {
+            brightnessHelper.systemBrightness
+        } else {
+            brightnessHelper.savedWindowBrightness
+        }
+        return (brightness * max).toInt().coerceIn(0, max)
+    }
+
     private fun updateBrightness(distance: Float) {
         gestureViewBinding.brightnessControlView.isVisible = true
         val bar = gestureViewBinding.brightnessProgressBar
+
+        if (!isBrightnessSwipeActive) {
+            // the slider of the system may have been moved since the last swipe
+            isBrightnessSwipeActive = true
+            if (brightnessHelper.isAutomatic) bar.progress = currentBrightnessProgress(bar.max)
+        }
 
         if (bar.progress == 0) {
             if (distance <= 0) {
@@ -1317,6 +1334,7 @@ class CustomExoPlayerView(
     override fun onSwipeEnd() {
         fullscreenGestureAnimationController.onSwipeEnd()
         autoBrightnessOvershoot = 0f
+        isBrightnessSwipeActive = false
         gestureViewBinding.brightnessControlView.isGone = true
         gestureViewBinding.volumeControlView.isGone = true
     }

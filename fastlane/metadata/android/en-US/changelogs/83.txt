@@ -1,0 +1,1 @@
+Brightness swipe starts at the position of the phone's brightness slider instead of 0.

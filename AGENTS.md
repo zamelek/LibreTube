@@ -210,6 +210,14 @@ the playback source and how the video was rendered.
    `PlayerFragment` is shown only if autoplay is on. The "next" button still works. Checked on a 19 s
    video (`jNQXAC9IVRw`), prefs `autoplay=false`, `repeat_mode=2`: it stops at 00:19; with `autoplay=true`
    it starts again.
+17. **Brightness swipe starts at the slider of the phone.** In 32.1.10 the brightness bar started at 0
+   whenever the brightness was automatic, although the slider of the phone stood higher.
+   `BrightnessHelper.systemBrightness` reads the slider (`screen_auto_brightness_adj`, mapped from
+   [-1, 1], with adaptive brightness; otherwise `screen_brightness` through the brightness curve), and
+   `CustomExoPlayerView.updateBrightness()` takes it as the start of every swipe while the brightness is
+   automatic. The swipe changes only the brightness of the player window, the slider of the phone does not
+   move (that would need the "modify system settings" permission; the owner chose the version without it).
+   Checked on the phone: a short swipe up from auto gives `sbrt=0.12` instead of `0.007`.
 
 ## Release history of the fork
 
@@ -229,6 +237,7 @@ https://github.com/zamelek/LibreTube/releases. Each version has a one line chang
 | 32.1.8  | 80 | Bot check of YouTube: longer retries, then the video is loaded over mobile data (setting). Removed again in 32.1.9 |
 | 32.1.9  | 81 | The mobile data switch is removed, the app behaves like 32.1.7 |
 | 32.1.10 | 82 | Brightness swipe holds 0 before auto and remembers auto, nothing plays after a video ends when autoplay is off |
+| 32.1.11 | 83 | Brightness swipe starts at the position of the phone's brightness slider |
 
 ## Files changed compared to upstream
 
