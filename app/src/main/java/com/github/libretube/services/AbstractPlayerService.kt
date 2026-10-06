@@ -99,7 +99,8 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            // show a toast on errors
+            // show a toast on errors, unless the service recovers from it on its own
+            if (onPlaybackError(error)) return
             toastFromMainThread(error.localizedMessage.orEmpty())
         }
 
@@ -117,6 +118,13 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
             }
         }
     }
+
+    /**
+     * Called when the player failed.
+     *
+     * @return whether the service recovered from the error (e.g. by switching the stream source)
+     */
+    protected open fun onPlaybackError(error: PlaybackException): Boolean = false
 
     override fun onCustomCommand(
         session: MediaSession,
