@@ -28,6 +28,7 @@ class BrightnessHelper(
             }
 
             savedWindowBrightness = value
+            isAutomatic = false
         }
 
     /**
@@ -36,6 +37,21 @@ class BrightnessHelper(
      */
     var savedWindowBrightness = windowBrightness
         private set
+
+    /**
+     * Whether the brightness is controlled by the system (automatic), i.e. not overridden by the user.
+     */
+    var isAutomatic = !savedWindowBrightness.isFinite()
+        private set
+
+    /**
+     * Hand the brightness over to the system and remember that, so that [restoreSavedBrightness]
+     * doesn't bring back the last manually chosen value.
+     */
+    fun switchToAutomatic() {
+        isAutomatic = true
+        resetToSystemBrightness()
+    }
 
     /**
      * Restore screen brightness to device system brightness.
@@ -50,8 +66,8 @@ class BrightnessHelper(
      * Set current screen brightness to saved brightness value.
      */
     fun restoreSavedBrightness() {
-        // nothing was saved yet, i.e. the brightness was never changed by the user
-        if (!savedWindowBrightness.isFinite()) return
+        // the brightness was never changed by the user or was set back to automatic
+        if (isAutomatic || !savedWindowBrightness.isFinite()) return
 
         windowBrightness = savedWindowBrightness
     }

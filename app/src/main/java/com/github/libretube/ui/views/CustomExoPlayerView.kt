@@ -861,29 +861,47 @@ class CustomExoPlayerView(
 
     private fun initializeGestureProgress() {
         gestureViewBinding.brightnessProgressBar.let { bar ->
-            bar.progress = (brightnessHelper.savedWindowBrightness * bar.max).toInt().coerceIn(0, bar.max)
+            bar.progress = if (brightnessHelper.isAutomatic) {
+                0
+            } else {
+                (brightnessHelper.savedWindowBrightness * bar.max).toInt().coerceIn(0, bar.max)
+            }
         }
         gestureViewBinding.volumeProgressBar.let { bar ->
             bar.progress = (audioHelper.deviceVolume * bar.max).toInt().coerceIn(0, bar.max)
         }
     }
 
+    /**
+     * How far (in px) the brightness swipe went on after reaching 0, in order to switch to auto.
+     */
+    private var autoBrightnessOvershoot = 0f
+
     private fun updateBrightness(distance: Float) {
         gestureViewBinding.brightnessControlView.isVisible = true
         val bar = gestureViewBinding.brightnessProgressBar
 
         if (bar.progress == 0) {
-            // If brightness progress goes to below 0, set to system brightness
             if (distance <= 0) {
-                brightnessHelper.resetToSystemBrightness()
-                gestureViewBinding.brightnessImageView.setImageResource(
-                    R.drawable.ic_brightness_auto
-                )
-                gestureViewBinding.brightnessTextView.text = resources.getString(R.string.auto)
+                // the lowest manual brightness (0) is kept until the swipe goes on for a while,
+                // only then the brightness is handed over to the system (auto)
+                autoBrightnessOvershoot -= distance
+                if (brightnessHelper.isAutomatic || autoBrightnessOvershoot >= AUTO_BRIGHTNESS_SWIPE_DISTANCE) {
+                    brightnessHelper.switchToAutomatic()
+                    gestureViewBinding.brightnessImageView.setImageResource(
+                        R.drawable.ic_brightness_auto
+                    )
+                    gestureViewBinding.brightnessTextView.text = resources.getString(R.string.auto)
+                } else {
+                    brightnessHelper.windowBrightness = 0f
+                    gestureViewBinding.brightnessImageView.setImageResource(R.drawable.ic_brightness)
+                    gestureViewBinding.brightnessTextView.text = "0"
+                }
                 return
             }
             gestureViewBinding.brightnessImageView.setImageResource(R.drawable.ic_brightness)
         }
+        autoBrightnessOvershoot = 0f
 
         bar.incrementProgressBy(distance.toInt())
         gestureViewBinding.brightnessTextView.text = "${bar.progress.normalize(0, bar.max, 0, 100)}"
@@ -1298,6 +1316,7 @@ class CustomExoPlayerView(
 
     override fun onSwipeEnd() {
         fullscreenGestureAnimationController.onSwipeEnd()
+        autoBrightnessOvershoot = 0f
         gestureViewBinding.brightnessControlView.isGone = true
         gestureViewBinding.volumeControlView.isGone = true
     }
@@ -1501,6 +1520,7 @@ class CustomExoPlayerView(
         private const val SUBTITLE_BOTTOM_PADDING_FRACTION = 0.158f
         private const val ANIMATION_DURATION = 100L
         private const val AUTO_HIDE_CONTROLLER_DELAY = 2000L
+        private const val AUTO_BRIGHTNESS_SWIPE_DISTANCE = 150f
         private val LANDSCAPE_MARGIN_HORIZONTAL = 20f.dpToPx()
         private val LANDSCAPE_MARGIN_HORIZONTAL_NONE = 0f.dpToPx()
     }

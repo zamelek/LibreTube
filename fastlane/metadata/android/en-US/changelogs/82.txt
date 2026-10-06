@@ -1,0 +1,1 @@
+Brightness swipe holds 0 before switching to auto, nothing plays after a video ends when autoplay is off.

@@ -4,6 +4,23 @@ Android YouTube client based on [LibreTube](https://github.com/libre-tube/LibreT
 with fixed playback of videos and livestream recordings. Fork: `zamelek/LibreTube`, branch `master`.
 There is no need to publish to Google Play, only APKs and GitHub releases.
 
+## Working rules for the agent
+
+The agent may work with this repository on its own: edit code, commit, push to `master` and publish
+releases, without asking for each step. After every finished bug fix or new feature:
+
+1. Build and check it (`assembleDebug`, on the phone when the change touches playback or the UI).
+2. Note the change in this file (a numbered item above and a row in the release history).
+3. Bump `versionCode`/`versionName` in `app/build.gradle.kts`, add
+   `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`.
+4. Commit (one commit per logical change, conventional style like `fix(player): ...`), push to `master`,
+   then `git tag vX.Y.Z && git push origin vX.Y.Z` so that `build-release.yml` builds and publishes the
+   signed APK. Check that the workflow run succeeded (`gh run list`, `gh release view vX.Y.Z`).
+
+Limits that stay: never read or print the keystore, `~/Projects/Personal/WireGuard` or repository
+secrets; never force-push or rewrite published history and tags; do not commit unrelated local files
+(`skills-lock.json`, `.autopilot/`); keep driving the owner's phone careful, it is their daily device.
+
 ## What was broken and what was done
 
 Symptoms reported by the owner: regular videos did not open at all (endless loading spinner),
@@ -179,6 +196,20 @@ the playback source and how the video was rendered.
 14. **applicationId** = `com.github.libretube.fork` (debug: `...fork.debug`), so the fork installs
    next to the original app (different signature, so the fork can never update the original). The
    owner has since removed the original from the phone and uses only the fork.
+15. **Brightness swipe: the lowest step (0) and auto.** Swiping down jumped from 0 to auto on the very
+   next event (the value 0 was visible for less than 200 ms), and after auto `BrightnessHelper` still
+   remembered the old manual value, so re-entering fullscreen restored it instead of auto. Now 0 is held
+   until the swipe goes on for `AUTO_BRIGHTNESS_SWIPE_DISTANCE` (150 px) more, only then
+   `BrightnessHelper.switchToAutomatic()` hands the brightness to the system, and `isAutomatic` makes
+   `restoreSavedBrightness()` keep auto. Checked with `dumpsys display | grep mBrightnessReason`
+   (`override(...)` at 0, `automatic` after the extra swipe and after leaving/entering fullscreen).
+16. **End of video with autoplay off.** `AbstractPlayerService.onVideoEnded()` (called from the online and
+   offline service when the video ends) plays nothing if "Autoplay" is off, unless the repeat mode is
+   "Current". Before, the queue (`PlayingQueue.getNext()`) was used regardless of autoplay, and with
+   repeat mode "Repeat all" and one video in the queue the video started again. The autoplay countdown in
+   `PlayerFragment` is shown only if autoplay is on. The "next" button still works. Checked on a 19 s
+   video (`jNQXAC9IVRw`), prefs `autoplay=false`, `repeat_mode=2`: it stops at 00:19; with `autoplay=true`
+   it starts again.
 
 ## Release history of the fork
 
@@ -197,6 +228,7 @@ https://github.com/zamelek/LibreTube/releases. Each version has a one line chang
 | 32.1.7  | 79 | Dead pooled connections no longer cause endless loading, failed fetch plays the next queued video |
 | 32.1.8  | 80 | Bot check of YouTube: longer retries, then the video is loaded over mobile data (setting). Removed again in 32.1.9 |
 | 32.1.9  | 81 | The mobile data switch is removed, the app behaves like 32.1.7 |
+| 32.1.10 | 82 | Brightness swipe holds 0 before auto and remembers auto, nothing plays after a video ends when autoplay is off |
 
 ## Files changed compared to upstream
 
