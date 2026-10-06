@@ -243,7 +243,8 @@ Upstream is `https://github.com/libre-tube/LibreTube` (remote `upstream`, base o
 Opened on 2026-10-06 in `libre-tube/LibreTube` (with an honest AI disclosure, because `CONTRIBUTING.md`
 does not permit AI contributions; the owner decided to send them anyway): #8843 autoplay-off, #8844
 sponsorblock, #8845 brightness, #8846 texture view, #8847 dead connections, #8848 stream source fallback.
-Check their state with `gh pr list -R libre-tube/LibreTube --author zamelek --state all`.
+All six were closed automatically within hours because of the AI policy. Do not open pull requests to
+upstream again without the owner asking for it; the branches stay in the fork for reference.
 
 `upstream-test` merges all of them into `upstream/master` for testing on the phone (debug build,
 `com.github.libretube.debug`, next to the fork). Not in any branch: colored seek bar segments (item 10, a
