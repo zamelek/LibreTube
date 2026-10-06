@@ -225,6 +225,27 @@ the playback source and how the video was rendered.
    move (that would need the "modify system settings" permission; the owner chose the version without it).
    Checked on the phone: a short swipe up from auto gives `sbrt=0.12` instead of `0.007`.
 
+## Branches for pull requests to upstream
+
+Upstream is `https://github.com/libre-tube/LibreTube` (remote `upstream`, base of the branches is
+`upstream/master`, 2026-10-06 `5315e6d7f`). One branch per fix, each built on its own with
+`assembleDebug`. The fork's `master` is not used for pull requests.
+
+| Branch | What |
+|--------|------|
+| `pr/autoplay-off-stops-playback` | nothing plays after the video ended if autoplay is off (item 16) |
+| `pr/sponsorblock-no-skip-after-seek` | no auto skip of a segment the user seeked into (item 9) |
+| `pr/fullscreen-brightness` | brightness swipe in the fullscreen dialog, PiP reset, 0 before auto, start at the slider (items 8, 15, 17) |
+| `pr/texture-view-for-player` | `TextureView` instead of `SurfaceView` (item 3) |
+| `pr/dead-pooled-connections` | dead pooled HTTP/2 connections (item 11) |
+| `pr/stream-source-fallback` | DASH → SABR → HLS, retries, next video after a failed fetch (items 1, 2, 5, 12). Biggest and the one upstream is most likely to discuss, because it changes the SABR-first design |
+
+`upstream-test` merges all of them into `upstream/master` for testing on the phone (debug build,
+`com.github.libretube.debug`, next to the fork). Not in any branch: colored seek bar segments (item 10, a
+feature), update URL, `applicationId`, workflows, probe test. The empty DASH manifest of livestreams
+(item 6) is already fixed in upstream (`5315e6d7f`).
+Build a branch: `git checkout <branch> && ./gradlew assembleDebug`, then go back to `master`.
+
 ## Release history of the fork
 
 All releases are signed with the same key and published at
