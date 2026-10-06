@@ -1,0 +1,1 @@
+Related videos list is back to the original behavior (horizontal in portrait).

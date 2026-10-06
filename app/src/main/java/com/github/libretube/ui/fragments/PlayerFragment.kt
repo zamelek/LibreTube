@@ -23,7 +23,6 @@ import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams
-import android.widget.ScrollView
 import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
@@ -724,10 +723,13 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             isEnteringPiPMode = true
         }
 
-        // one video per row, both in portrait and in landscape mode
         binding.relatedRecView.layoutManager = LinearLayoutManager(
             context,
-            LinearLayoutManager.VERTICAL,
+            if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                LinearLayoutManager.HORIZONTAL
+            } else {
+                LinearLayoutManager.VERTICAL
+            },
             false
         )
 
@@ -1235,29 +1237,11 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             streams.relatedStreams.filter { !it.title.isNullOrBlank() }
         }
 
-        val adapter = VideoCardsAdapter()
-        binding.relatedRecView.adapter = adapter
-
-        // The list is wrapped in a scroll view, so its items can't be recycled. Binding all of them
-        // at once makes the UI stutter, so they are revealed page by page while scrolling instead.
-        var shownCount = minOf(RELATED_STREAMS_PAGE_SIZE, relatedStreams.size)
-        adapter.submitList(relatedStreams.take(shownCount))
-
-        val scrollView = generateSequence(binding.relatedRecView.parent) { it.parent }
-            .filterIsInstance<ScrollView>()
-            .firstOrNull()
-        if (scrollView == null) {
+        val relatedLayoutManager = binding.relatedRecView.layoutManager as LinearLayoutManager
+        binding.relatedRecView.adapter = VideoCardsAdapter(
+            columnWidthDp = if (relatedLayoutManager.orientation == LinearLayoutManager.HORIZONTAL) 250f else null
+        ).also { adapter ->
             adapter.submitList(relatedStreams)
-            return
-        }
-
-        scrollView.setOnScrollChangeListener { view, _, scrollY, _, _ ->
-            val contentHeight = scrollView.getChildAt(0)?.height ?: return@setOnScrollChangeListener
-            val isNearEnd = scrollY + view.height >= contentHeight - view.height
-            if (isNearEnd && shownCount < relatedStreams.size) {
-                shownCount = minOf(shownCount + RELATED_STREAMS_PAGE_SIZE, relatedStreams.size)
-                adapter.submitList(relatedStreams.take(shownCount))
-            }
         }
     }
 
@@ -1505,8 +1489,3 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         return ::streams.isInitialized && streams.isLive
     }
 }
-
-/**
- * The number of related videos that get revealed at once.
- */
-private const val RELATED_STREAMS_PAGE_SIZE = 6

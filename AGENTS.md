@@ -17,6 +17,12 @@ releases, without asking for each step. After every finished bug fix or new feat
    then `git tag vX.Y.Z && git push origin vX.Y.Z` so that `build-release.yml` builds and publishes the
    signed APK. Check that the workflow run succeeded (`gh run list`, `gh release view vX.Y.Z`).
 
+**Keep the diff to upstream small.** The owner wants to send the fixes to upstream as pull requests, and a
+large diff would be rejected. So: fix the bug with the smallest possible change, keep upstream behavior,
+layout and UI design, no refactoring, no new settings or screens, no behavior changes that are not
+needed for the fix. If a fix would change what the user sees or does, ask first. Fork-only things
+(`applicationId`, update URL, workflows, `AGENTS.md`, probes) stay out of pull requests.
+
 Limits that stay: never read or print the keystore, `~/Projects/Personal/WireGuard` or repository
 secrets; never force-push or rewrite published history and tags; do not commit unrelated local files
 (`skills-lock.json`, `.autopilot/`); keep driving the owner's phone careful, it is their daily device.
@@ -43,10 +49,10 @@ the playback source and how the video was rendered.
    `app:surface_type="texture_view"` in `layout/fragment_player.xml` and
    `layout-land/fragment_player.xml`. The screenshot button in `PlayerFragment` supports both view
    types (`TextureView.bitmap` / `PixelCopy`). The root cause in `SurfaceView` was not investigated.
-4. **Related videos** below the player: a single vertical list in every orientation
-   (`PlayerFragment`), cards are revealed 6 at a time while scrolling
-   (`RELATED_STREAMS_PAGE_SIZE`), because the list lives inside a `ScrollView` and does not recycle
-   its views.
+4. **Related videos** below the player: in 32.1.1 - 32.1.11 a single vertical list that revealed cards 6
+   at a time. **Reverted in 32.1.12** to the upstream behavior (horizontal list in portrait, vertical in
+   landscape, everything at once), because the fork should stay close to upstream for a pull request.
+   `PlayerFragment` and `layout/fragment_player.xml` no longer differ from upstream in this place.
 5. **Retries.** `getStreamsWithRetry()` makes up to 3 attempts to fetch the video data, otherwise a
    single network error left the UI with a spinner forever.
 6. **Livestreams.** YouTube often returns an empty DASH manifest URL (an empty string, not `null`)
@@ -238,6 +244,7 @@ https://github.com/zamelek/LibreTube/releases. Each version has a one line chang
 | 32.1.9  | 81 | The mobile data switch is removed, the app behaves like 32.1.7 |
 | 32.1.10 | 82 | Brightness swipe holds 0 before auto and remembers auto, nothing plays after a video ends when autoplay is off |
 | 32.1.11 | 83 | Brightness swipe starts at the position of the phone's brightness slider |
+| 32.1.12 | 84 | Related videos list is back to the upstream behavior (horizontal in portrait) |
 
 ## Files changed compared to upstream
 
@@ -245,14 +252,13 @@ Base is upstream commit `b265e2d02`. Everything else in the tree is unchanged up
 
 - `services/OnlinePlayerService.kt`, `services/AbstractPlayerService.kt`: source selection and
   fallback, `isSwitchingSource`, `getStreamsWithRetry()`, the `onPlaybackError()` hook.
-- `ui/fragments/PlayerFragment.kt`: vertical paged related list, screenshot for both view types,
-  forwards PiP changes to the player view.
+- `ui/fragments/PlayerFragment.kt`: screenshot for both view types, forwards PiP changes to the player
+  view, autoplay countdown only if autoplay is on.
 - `ui/views/CustomExoPlayerView.kt`, `helpers/BrightnessHelper.kt`: brightness follows the shown
   window, PiP reset.
 - `services/AbstractPlayerService.kt` (`checkForSegments()`), `ui/views/MarkableTimeBar.kt`:
   SponsorBlock seek handling and the colored segments on the seek bar.
-- `res/layout/fragment_player.xml`, `res/layout-land/fragment_player.xml`: `texture_view` surface and
-  the related list width.
+- `res/layout/fragment_player.xml`, `res/layout-land/fragment_player.xml`: `texture_view` surface.
 - `api/ExternalApi.kt`: update check URL.
 - `util/NewPipeDownloaderImpl.kt`: connection pool, HTTP/2 ping and retry on a fresh connection.
 - `app/src/test/java/com/github/libretube/BotCheckProbeTest.kt`: opt-in diagnostic for the YouTube bot
@@ -343,8 +349,8 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
 - The report "after picking another video it loads forever" could not be reproduced on demand. Two
   causes are known: the local version dialog (see above) and dead pooled connections (item 11). The
   second one was caught in the device log while it happened.
-- Scrolling related videos during playback gives about 5-6% janky frames on a debug build; release is
-  better, but the cause was not fully explained.
+- Scrolling related videos: after the revert to the upstream list (all cards at once inside a
+  `ScrollView`) it may be slower again; the paged variant was removed to keep the diff small.
 - The release build (R8) was checked by installing it and running the livestream, the fullscreen
   brightness swipe and a normal video; not every screen was exercised.
 - A one-off job for the owner: the `Music` playlist of a LibreTube backup was sorted by song and then
